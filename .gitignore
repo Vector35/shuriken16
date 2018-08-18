@@ -8,3 +8,5 @@ shuriken-editor.app
 shuriken-editor.exe
 .vscode/
 .DS_Store
+libeditorcore.a
+libeditorcore.lib
