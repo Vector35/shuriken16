@@ -1,0 +1,10 @@
+*.o
+*.d
+moc_*
+Makefile*
+.qmake.stash
+shuriken-editor
+shuriken-editor.app
+shuriken-editor.exe
+.vscode/
+.DS_Store
