@@ -26,7 +26,7 @@ TileSetAnimationWidget::TileSetAnimationWidget(QWidget* parent, TileSetEditorWid
 	m_createButton = new QPushButton("Create");
 	connect(m_createButton, &QPushButton::clicked, this, &TileSetAnimationWidget::OnCreateAnimation);
 	headerLayout->addWidget(m_createButton);
-	headerLayout->addSpacing(8);
+	headerLayout->addSpacing(16);
 	layout->addLayout(headerLayout);
 
 	m_entryLayout = new QVBoxLayout();

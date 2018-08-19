@@ -18,8 +18,9 @@ class ProjectViewWidget: public QWidget
 	QVBoxLayout* m_tileSetLayout;
 	QVBoxLayout* m_effectLayerLayout;
 	QVBoxLayout* m_mapLayout;
+	QVBoxLayout* m_spriteLayout;
 
-	std::vector<QWidget*> m_paletteItems, m_tileSetItems, m_effectLayerItems, m_mapItems;
+	std::vector<QWidget*> m_paletteItems, m_tileSetItems, m_effectLayerItems, m_mapItems, m_spriteItems;
 
 	bool ChooseName(const std::string& defaultName, std::string& chosenName,
 		const QString& title, const QString& prompt);
@@ -40,6 +41,10 @@ class ProjectViewWidget: public QWidget
 	void DuplicateMap(std::shared_ptr<Map> map);
 	void RemoveMap(std::shared_ptr<Map> map);
 
+	void RenameSprite(std::shared_ptr<Sprite> sprite);
+	void DuplicateSprite(std::shared_ptr<Sprite> sprite);
+	void RemoveSprite(std::shared_ptr<Sprite> sprite);
+
 public:
 	ProjectViewWidget(QWidget* parent, MainWindow* mainWindow);
 
@@ -53,6 +58,7 @@ private slots:
 	void AddTileset();
 	void AddEffectLayer();
 	void AddMap();
+	void AddSprite();
 };
 
 class ProjectView: public QDockWidget

@@ -39,7 +39,7 @@ MapLayerItemWidget::MapLayerItemWidget(QWidget* parent, const string& name, bool
 	}
 
 	QHBoxLayout* layout = new QHBoxLayout();
-	layout->setContentsMargins(4, 4, 16, 4);
+	layout->setContentsMargins(4, 2, 16, 2);
 	m_visible = new QCheckBox();
 	m_visible->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
 	connect(m_visible, &QCheckBox::stateChanged, this, &MapLayerItemWidget::OnVisibleChanged);

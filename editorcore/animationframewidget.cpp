@@ -39,7 +39,7 @@ AnimationFrameWidget::AnimationFrameWidget(QWidget* parent, const string& name, 
 	}
 
 	QHBoxLayout* layout = new QHBoxLayout();
-	layout->setContentsMargins(4, 4, 16, 4);
+	layout->setContentsMargins(4, 1, 16, 1);
 	AnimationFrameLabel* label = new AnimationFrameLabel(QString::fromStdString(name), Theme::blue, openFunc);
 	layout->addWidget(label, 1);
 

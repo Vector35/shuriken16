@@ -9,9 +9,9 @@
 #include <set>
 #include <queue>
 #include <stdlib.h>
-#include "tileseteditorwidget.h"
-#include "tilesetanimationwidget.h"
-#include "tilesetview.h"
+#include "spriteeditorwidget.h"
+#include "spriteanimationwidget.h"
+#include "spriteview.h"
 #include "theme.h"
 #include "mainwindow.h"
 #include "json/json.h"
@@ -19,10 +19,10 @@
 using namespace std;
 
 
-TileSetEditorWidget::TileSetEditorWidget(QWidget* parent, MainWindow* mainWindow, QScrollArea* scrollArea,
-	shared_ptr<Project> project, shared_ptr<TileSet> tileSet):
+SpriteEditorWidget::SpriteEditorWidget(QWidget* parent, MainWindow* mainWindow, QScrollArea* scrollArea,
+	shared_ptr<Project> project, shared_ptr<Sprite> sprite):
 	QWidget(parent), m_mainWindow(mainWindow), m_scrollArea(scrollArea),
-	m_project(project), m_tileSet(tileSet), m_animWidget(nullptr), m_previewWidget(nullptr)
+	m_project(project), m_sprite(sprite), m_animWidget(nullptr), m_previewWidget(nullptr)
 {
 	QPalette style(this->palette());
 	style.setColor(QPalette::Window, Theme::background);
@@ -34,18 +34,19 @@ TileSetEditorWidget::TileSetEditorWidget(QWidget* parent, MainWindow* mainWindow
 	m_mouseDown = false;
 	m_showHover = false;
 	m_tool = PenTool;
+	m_animation = m_sprite->GetAnimation(0);
 	m_frame = 0;
 
 	setMouseTracking(true);
 }
 
 
-void TileSetEditorWidget::ResetPalette()
+void SpriteEditorWidget::ResetPalette()
 {
 	m_palette.reset();
 	for (auto& i : m_project->GetPalettes())
 	{
-		if (m_tileSet->UsesPalette(i.second))
+		if (m_sprite->UsesPalette(i.second))
 		{
 			m_palette = i.second;
 			m_rightPaletteEntry = 0;
@@ -72,49 +73,43 @@ void TileSetEditorWidget::ResetPalette()
 }
 
 
-void TileSetEditorWidget::UpdateView()
+void SpriteEditorWidget::UpdateView()
 {
-	m_columns = m_tileSet->GetDisplayColumns();
-	if (m_columns > m_tileSet->GetTileCount())
-		m_columns = m_tileSet->GetTileCount();
-	m_rows = (m_tileSet->GetTileCount() + (m_columns - 1)) / m_columns;
-
 	if (m_palette && !m_project->GetPaletteById(m_palette->GetId()))
 	{
 		// Palette is no longer valid
 		ResetPalette();
 	}
 
-	resize((int)(m_tileSet->GetWidth() * m_columns * m_zoom),
-		(int)(m_tileSet->GetHeight() * m_rows * m_zoom));
+	resize((int)(m_sprite->GetWidth() * m_zoom), (int)(m_sprite->GetHeight() * m_zoom));
 	update();
 }
 
 
-shared_ptr<Palette> TileSetEditorWidget::GetSelectedPalette() const
+shared_ptr<Palette> SpriteEditorWidget::GetSelectedPalette() const
 {
 	return m_palette;
 }
 
 
-size_t TileSetEditorWidget::GetSelectedLeftPaletteEntry() const
+size_t SpriteEditorWidget::GetSelectedLeftPaletteEntry() const
 {
 	return m_leftPaletteEntry;
 }
 
 
-size_t TileSetEditorWidget::GetSelectedRightPaletteEntry() const
+size_t SpriteEditorWidget::GetSelectedRightPaletteEntry() const
 {
 	return m_rightPaletteEntry;
 }
 
 
-void TileSetEditorWidget::SetSelectedLeftPaletteEntry(std::shared_ptr<Palette> palette, size_t entry)
+void SpriteEditorWidget::SetSelectedLeftPaletteEntry(std::shared_ptr<Palette> palette, size_t entry)
 {
 	m_palette = palette;
 	m_leftPaletteEntry = entry;
 
-	if (m_tileSet->GetDepth() == 4)
+	if (m_sprite->GetDepth() == 4)
 	{
 		m_rightPaletteEntry = (entry & 0xf0) | (m_rightPaletteEntry & 0xf);
 		if (m_rightPaletteEntry >= palette->GetEntryCount())
@@ -123,12 +118,12 @@ void TileSetEditorWidget::SetSelectedLeftPaletteEntry(std::shared_ptr<Palette> p
 }
 
 
-void TileSetEditorWidget::SetSelectedRightPaletteEntry(std::shared_ptr<Palette> palette, size_t entry)
+void SpriteEditorWidget::SetSelectedRightPaletteEntry(std::shared_ptr<Palette> palette, size_t entry)
 {
 	m_palette = palette;
 	m_rightPaletteEntry = entry;
 
-	if (m_tileSet->GetDepth() == 4)
+	if (m_sprite->GetDepth() == 4)
 	{
 		m_leftPaletteEntry = (entry & 0xf0) | (m_leftPaletteEntry & 0xf);
 		if (m_leftPaletteEntry >= palette->GetEntryCount())
@@ -137,7 +132,7 @@ void TileSetEditorWidget::SetSelectedRightPaletteEntry(std::shared_ptr<Palette> 
 }
 
 
-void TileSetEditorWidget::SetFrame(uint16_t frame)
+void SpriteEditorWidget::SetFrame(const shared_ptr<SpriteAnimation>& anim, uint16_t frame)
 {
 	if (m_selectionContents)
 	{
@@ -151,190 +146,169 @@ void TileSetEditorWidget::SetFrame(uint16_t frame)
 		m_underSelection.reset();
 	}
 
+	m_animation = anim;
 	m_frame = frame;
 	UpdateView();
 
 	if (m_animWidget)
 		m_animWidget->UpdateView();
 	if (m_previewWidget)
-		m_previewWidget->SetActiveFrame(frame);
+		m_previewWidget->SetActiveFrame(anim, frame);
 }
 
 
-void TileSetEditorWidget::paintEvent(QPaintEvent* event)
+void SpriteEditorWidget::paintEvent(QPaintEvent* event)
 {
 	QPainter p(this);
 
-	int tileWidth = (int)m_tileSet->GetWidth() * m_zoom;
-	int tileHeight = (int)m_tileSet->GetHeight() * m_zoom;
+	int tileWidth = (int)m_sprite->GetWidth() * m_zoom;
+	int tileHeight = (int)m_sprite->GetHeight() * m_zoom;
 
 	bool hoverValid = false;
 
-	for (int tileY = 0; tileY < (int)m_rows; tileY++)
+	shared_ptr<Tile> tile = m_animation->GetTile();
+	if (!tile)
+		return;
+	if ((tile->GetWidth() != m_sprite->GetWidth()))
+		return;
+	if ((tile->GetHeight() != m_sprite->GetHeight()))
+		return;
+	if ((tile->GetDepth() != m_sprite->GetDepth()))
+		return;
+
+	shared_ptr<Palette> paletteOverride;
+	uint8_t paletteOverrideOffset;
+	if (m_showHover)
 	{
-		if (((tileY + 1) * tileHeight) < event->rect().top())
+		if ((m_hoverX >= 0) &&
+			(m_hoverX < (int)m_sprite->GetWidth()) &&
+			(m_hoverY >= 0) &&
+			(m_hoverY < (int)m_sprite->GetHeight()))
+		{
+			hoverValid = true;
+			paletteOverride = m_palette;
+			if (m_sprite->GetDepth() == 4)
+				paletteOverrideOffset = m_leftPaletteEntry & 0xf0;
+			else
+				paletteOverrideOffset = 0;
+		}
+	}
+
+	p.setBrush(QBrush(Theme::backgroundHighlight, Qt::BDiagPattern));
+	p.setPen(Qt::NoPen);
+	p.drawRect(0, 0, tileWidth, tileHeight);
+
+	for (int y = 0; y < (int)m_sprite->GetHeight(); y++)
+	{
+		if (((y + 1) * m_zoom) < event->rect().top())
 			continue;
-		if ((tileY * tileHeight) > event->rect().bottom())
+		if ((y * m_zoom) > event->rect().bottom())
 			break;
 
-		for (int tileX = 0; tileX < (int)m_columns; tileX++)
+		for (int x = 0; x < (int)m_sprite->GetWidth(); x++)
 		{
-			if (((tileX + 1) * tileWidth) < event->rect().left())
+			if (((x + 1) * m_zoom) < event->rect().left())
 				continue;
-			if ((tileX * tileWidth) > event->rect().right())
+			if ((x * m_zoom) > event->rect().right())
 				break;
 
-			size_t tileIndex = (size_t)((tileY * m_columns) + tileX);
-			if (tileIndex >= m_tileSet->GetTileCount())
-				break;
+			shared_ptr<Palette> palette = tile->GetPalette();
+			uint8_t colorIndex;
+			if (tile->GetDepth() == 4)
+				colorIndex = (tile->GetData(m_frame)[(y * tile->GetPitch()) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
+			else
+				colorIndex = tile->GetData(m_frame)[(y * tile->GetPitch()) + x];
+			if (paletteOverride)
+				colorIndex += paletteOverrideOffset;
+			else
+				colorIndex += tile->GetPaletteOffset();
 
-			shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
-			if (!tile)
-				continue;
-			if ((tile->GetWidth() != m_tileSet->GetWidth()))
-				continue;
-			if ((tile->GetHeight() != m_tileSet->GetHeight()))
-				continue;
-			if ((tile->GetDepth() != m_tileSet->GetDepth()))
-				continue;
-
-			shared_ptr<Palette> paletteOverride;
-			uint8_t paletteOverrideOffset;
-			if (m_showHover)
+			if (m_floatingLayer)
 			{
-				if ((m_hoverX >= (tileX * (int)m_tileSet->GetWidth())) &&
-					(m_hoverX < ((tileX + 1) * (int)m_tileSet->GetWidth())) &&
-					(m_hoverY >= (tileY * (int)m_tileSet->GetHeight())) &&
-					(m_hoverY < ((tileY + 1) * (int)m_tileSet->GetHeight())))
+				if ((x >= m_floatingLayer->GetX()) && (y >= m_floatingLayer->GetY()) &&
+					(x < (m_floatingLayer->GetX() + m_floatingLayer->GetWidth())) &&
+					(y < (m_floatingLayer->GetY() + m_floatingLayer->GetHeight())))
 				{
-					hoverValid = true;
-					paletteOverride = m_palette;
-					if (m_tileSet->GetDepth() == 4)
-						paletteOverrideOffset = m_leftPaletteEntry & 0xf0;
-					else
-						paletteOverrideOffset = 0;
+					TileSetFloatingLayerPixel pixel = m_floatingLayer->GetPixel(
+						x - m_floatingLayer->GetX(), y - m_floatingLayer->GetY());
+					if (pixel.valid)
+					{
+						palette = pixel.palette;
+						colorIndex = pixel.entry;
+					}
 				}
 			}
 
-			p.setBrush(QBrush(Theme::backgroundHighlight, Qt::BDiagPattern));
-			p.setPen(Qt::NoPen);
-			p.drawRect(tileWidth * tileX, tileHeight * tileY, tileWidth, tileHeight);
+			if (colorIndex == 0)
+				continue;
+			if (!palette)
+				continue;
 
-			for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
+			uint16_t paletteEntry;
+			if (paletteOverride)
+				paletteEntry = paletteOverride->GetEntry(colorIndex);
+			else
+				paletteEntry = palette->GetEntry(colorIndex);
+
+			p.setBrush(QColor::fromRgba(Palette::ToRGB32(paletteEntry) | 0xff000000));
+			p.drawRect(x * m_zoom, y * m_zoom, m_zoom, m_zoom);
+		}
+	}
+
+	if (m_zoom >= 8)
+	{
+		for (int y = 0; y < (int)m_sprite->GetHeight(); y++)
+		{
+			if (((y + 1) * m_zoom) < event->rect().top())
+				continue;
+			if ((y * m_zoom) > event->rect().bottom())
+				break;
+
+			for (int x = 0; x < (int)m_sprite->GetWidth(); x++)
 			{
-				if ((tileY * tileHeight + (y + 1) * m_zoom) < event->rect().top())
+				if (((x + 1) * m_zoom) < event->rect().left())
 					continue;
-				if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
+				if ((x * m_zoom) > event->rect().right())
 					break;
 
-				for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
-				{
-					if ((tileX * tileWidth + (x + 1) * m_zoom) < event->rect().left())
-						continue;
-					if ((tileX * tileWidth + x * m_zoom) > event->rect().right())
-						break;
-
-					shared_ptr<Palette> palette = tile->GetPalette();
-					uint8_t colorIndex;
-					if (tile->GetDepth() == 4)
-						colorIndex = (tile->GetData(m_frame)[(y * tile->GetPitch()) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
-					else
-						colorIndex = tile->GetData(m_frame)[(y * tile->GetPitch()) + x];
-					if (paletteOverride)
-						colorIndex += paletteOverrideOffset;
-					else
-						colorIndex += tile->GetPaletteOffset();
-
-					if (m_floatingLayer)
-					{
-						int absX = (tileX * (int)m_tileSet->GetWidth()) + x;
-						int absY = (tileY * (int)m_tileSet->GetHeight()) + y;
-						if ((absX >= m_floatingLayer->GetX()) && (absY >= m_floatingLayer->GetY()) &&
-							(absX < (m_floatingLayer->GetX() + m_floatingLayer->GetWidth())) &&
-							(absY < (m_floatingLayer->GetY() + m_floatingLayer->GetHeight())))
-						{
-							TileSetFloatingLayerPixel pixel = m_floatingLayer->GetPixel(
-								absX - m_floatingLayer->GetX(), absY - m_floatingLayer->GetY());
-							if (pixel.valid)
-							{
-								palette = pixel.palette;
-								colorIndex = pixel.entry;
-							}
-						}
-					}
-
-					if (colorIndex == 0)
-						continue;
-					if (!palette)
-						continue;
-
-					uint16_t paletteEntry;
-					if (paletteOverride)
-						paletteEntry = paletteOverride->GetEntry(colorIndex);
-					else
-						paletteEntry = palette->GetEntry(colorIndex);
-
-					p.setBrush(QColor::fromRgba(Palette::ToRGB32(paletteEntry) | 0xff000000));
-					p.drawRect(tileWidth * tileX + x * m_zoom, tileHeight * tileY + y * m_zoom, m_zoom, m_zoom);
-				}
-			}
-
-			if (m_zoom >= 8)
-			{
-				for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
-				{
-					if ((tileY * tileHeight + (y + 1) * m_zoom) < event->rect().top())
-						continue;
-					if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
-						break;
-
-					for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
-					{
-						if ((tileX * tileWidth + (x + 1) * m_zoom) < event->rect().left())
-							continue;
-						if ((tileX * tileWidth + x * m_zoom) > event->rect().right())
-							break;
-
-						p.setPen(QPen(QBrush(Theme::backgroundHighlight), 1));
-						p.setBrush(Qt::NoBrush);
-						p.drawRect(tileWidth * tileX + x * m_zoom, tileHeight * tileY + y * m_zoom, m_zoom, m_zoom);
-					}
-				}
-			}
-
-			if (m_zoom >= 4)
-			{
-				for (int y = 0; y < (int)m_tileSet->GetHeight(); y += 8)
-				{
-					if ((tileY * tileHeight + (y + 8) * m_zoom) < event->rect().top())
-						continue;
-					if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
-						break;
-
-					for (int x = 0; x < (int)m_tileSet->GetWidth(); x += 8)
-					{
-						if ((tileX * tileWidth + (x + 8) * m_zoom) < event->rect().left())
-							continue;
-						if ((tileX * tileWidth + x * m_zoom) > event->rect().right())
-							break;
-
-						p.setPen(QPen(QBrush(Theme::backgroundHighlight), 2));
-						p.setBrush(Qt::NoBrush);
-						p.drawRect(tileWidth * tileX + x * m_zoom, tileHeight * tileY + y * m_zoom, m_zoom * 8, m_zoom * 8);
-					}
-				}
-			}
-
-			if (m_zoom >= 2)
-			{
-				if (m_zoom >= 8)
-					p.setPen(QPen(QBrush(Theme::disabled), 2));
-				else
-					p.setPen(QPen(QBrush(Theme::disabled), 1));
+				p.setPen(QPen(QBrush(Theme::backgroundHighlight), 1));
 				p.setBrush(Qt::NoBrush);
-				p.drawRect(tileWidth * tileX, tileHeight * tileY, tileWidth, tileHeight);
+				p.drawRect(x * m_zoom, y * m_zoom, m_zoom, m_zoom);
 			}
 		}
+	}
+
+	if (m_zoom >= 4)
+	{
+		for (int y = 0; y < (int)m_sprite->GetHeight(); y += 8)
+		{
+			if (((y + 8) * m_zoom) < event->rect().top())
+				continue;
+			if ((y * m_zoom) > event->rect().bottom())
+				break;
+
+			for (int x = 0; x < (int)m_sprite->GetWidth(); x += 8)
+			{
+				if (((x + 8) * m_zoom) < event->rect().left())
+					continue;
+				if ((x * m_zoom) > event->rect().right())
+					break;
+
+				p.setPen(QPen(QBrush(Theme::backgroundHighlight), 2));
+				p.setBrush(Qt::NoBrush);
+				p.drawRect(x * m_zoom, y * m_zoom, m_zoom * 8, m_zoom * 8);
+			}
+		}
+	}
+
+	if (m_zoom >= 2)
+	{
+		if (m_zoom >= 8)
+			p.setPen(QPen(QBrush(Theme::disabled), 2));
+		else
+			p.setPen(QPen(QBrush(Theme::disabled), 1));
+		p.setBrush(Qt::NoBrush);
+		p.drawRect(0, 0, tileWidth, tileHeight);
 	}
 
 	if ((m_tool == SelectTool) && m_floatingLayer)
@@ -369,7 +343,7 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 }
 
 
-TileSetFloatingLayerPixel TileSetEditorWidget::GetPixel(int x, int y)
+TileSetFloatingLayerPixel SpriteEditorWidget::GetPixel(int x, int y)
 {
 	TileSetFloatingLayerPixel result;
 	result.valid = false;
@@ -377,29 +351,24 @@ TileSetFloatingLayerPixel TileSetEditorWidget::GetPixel(int x, int y)
 	if ((x < 0) || (y < 0))
 		return result;
 
-	int tileX = x / m_tileSet->GetWidth();
-	int tileY = y / m_tileSet->GetHeight();
-	if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+	int tileX = x / m_sprite->GetWidth();
+	int tileY = y / m_sprite->GetHeight();
+	if ((tileX != 0) || (tileY != 0))
 		return result;
 
-	size_t tileIndex = (tileY * m_columns) + tileX;
-	if (tileIndex >= m_tileSet->GetTileCount())
-		return result;
-	shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+	shared_ptr<Tile> tile = m_animation->GetTile();
 	if (!tile)
 		return result;
 
-	int pixelX = x % m_tileSet->GetWidth();
-	int pixelY = y % m_tileSet->GetHeight();
 	uint8_t colorIndex;
 	if (tile->GetDepth() == 4)
 	{
-		size_t offset = (pixelY * tile->GetPitch()) + (pixelX / 2);
-		colorIndex = (tile->GetData(m_frame)[offset] >> ((pixelX & 1) << 2)) & 0xf;
+		size_t offset = (y * tile->GetPitch()) + (x / 2);
+		colorIndex = (tile->GetData(m_frame)[offset] >> ((x & 1) << 2)) & 0xf;
 	}
 	else
 	{
-		size_t offset = (pixelY * tile->GetPitch()) + pixelX;
+		size_t offset = (y * tile->GetPitch()) + x;
 		colorIndex = tile->GetData(m_frame)[offset];
 	}
 
@@ -417,19 +386,16 @@ TileSetFloatingLayerPixel TileSetEditorWidget::GetPixel(int x, int y)
 }
 
 
-void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, uint8_t entry)
+void SpriteEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, uint8_t entry)
 {
 	if ((x < 0) || (y < 0))
 		return;
-	int tileX = x / m_tileSet->GetWidth();
-	int tileY = y / m_tileSet->GetHeight();
-	if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+	int tileX = x / m_sprite->GetWidth();
+	int tileY = y / m_sprite->GetHeight();
+	if ((tileX != 0) || (tileY != 0))
 		return;
 
-	size_t tileIndex = (tileY * m_columns) + tileX;
-	if (tileIndex >= m_tileSet->GetTileCount())
-		return;
-	shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+	shared_ptr<Tile> tile = m_animation->GetTile();
 	if (!tile)
 		return;
 
@@ -438,8 +404,6 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 	if (entry == 0)
 		palette = tile->GetPalette();
 
-	int pixelX = x % m_tileSet->GetWidth();
-	int pixelY = y % m_tileSet->GetHeight();
 	uint8_t* data;
 	uint8_t newData, colorIndex, paletteOffset;
 	size_t offset;
@@ -447,15 +411,15 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 	{
 		colorIndex = (uint8_t)(entry & 0xf);
 		paletteOffset = (uint8_t)(entry & 0xf0);
-		offset = (pixelY * tile->GetPitch()) + (pixelX / 2);
+		offset = (y * tile->GetPitch()) + (x / 2);
 		data = &tile->GetData(m_frame)[offset];
-		newData = ((*data) & (0xf0 >> ((pixelX & 1) << 2))) | (colorIndex << ((pixelX & 1) << 2));
+		newData = ((*data) & (0xf0 >> ((x & 1) << 2))) | (colorIndex << ((x & 1) << 2));
 	}
 	else
 	{
 		colorIndex = entry;
 		paletteOffset = 0;
-		offset = (pixelY * tile->GetPitch()) + pixelX;
+		offset = (y * tile->GetPitch()) + x;
 		data = &tile->GetData(m_frame)[offset];
 		newData = colorIndex;
 	}
@@ -464,7 +428,7 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 		(paletteOffset != tile->GetPaletteOffset()))))
 	{
 		EditAction action;
-		action.tileIndex = tileIndex;
+		action.anim = m_animation;
 		action.offset = offset;
 		action.oldData = *data;
 		action.newData = newData;
@@ -496,12 +460,12 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 			bool usedNewPalette = false;
 			bool usesOldPalette = false;
 			if (palette)
-				usedNewPalette = m_tileSet->UsesPalette(palette);
+				usedNewPalette = m_sprite->UsesPalette(palette);
 
 			tile->SetPalette(palette, paletteOffset);
 
 			if (oldPalette)
-				usesOldPalette = m_tileSet->UsesPalette(oldPalette);
+				usesOldPalette = m_sprite->UsesPalette(oldPalette);
 
 			if (oldPalette && !usesOldPalette)
 				m_mainWindow->UpdatePaletteContents(oldPalette);
@@ -512,16 +476,16 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 }
 
 
-void TileSetEditorWidget::SetPixelForMouseEvent(QMouseEvent* event)
+void SpriteEditorWidget::SetPixelForMouseEvent(QMouseEvent* event)
 {
 	int x = event->x() / m_zoom;
 	int y = event->y() / m_zoom;
 	SetPixel(x, y, m_palette, m_mouseDownPaletteEntry);
-	m_mainWindow->UpdateTileSetContents(m_tileSet);
+	m_mainWindow->UpdateSpriteContents(m_sprite);
 }
 
 
-void TileSetEditorWidget::CaptureLayer(shared_ptr<TileSetFloatingLayer> layer)
+void SpriteEditorWidget::CaptureLayer(shared_ptr<TileSetFloatingLayer> layer)
 {
 	int leftX = layer->GetX();
 	int topY = layer->GetY();
@@ -532,23 +496,18 @@ void TileSetEditorWidget::CaptureLayer(shared_ptr<TileSetFloatingLayer> layer)
 	{
 		for (int x = 0; x < width; x++)
 		{
-			int tileX = (leftX + x) / m_tileSet->GetWidth();
-			int tileY = (topY + y) / m_tileSet->GetHeight();
-			int tilePixelX = (leftX + x) % m_tileSet->GetWidth();
-			int tilePixelY = (topY + y) % m_tileSet->GetHeight();
-			if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+			int tileX = (leftX + x) / m_sprite->GetWidth();
+			int tileY = (topY + y) / m_sprite->GetHeight();
+			if ((tileX != 0) || (tileY != 0))
 			{
 				layer->SetPixel(x, y, shared_ptr<Palette>(), 0);
 				continue;
 			}
 
-			size_t tileIndex = (tileY * m_columns) + tileX;
-			if (tileIndex >= m_tileSet->GetTileCount())
-			{
-				layer->SetPixel(x, y, shared_ptr<Palette>(), 0);
-				continue;
-			}
-			shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+			int tilePixelX = leftX + x;
+			int tilePixelY = topY + y;
+
+			shared_ptr<Tile> tile = m_animation->GetTile();
 			if (!tile)
 			{
 				layer->SetPixel(x, y, shared_ptr<Palette>(), 0);
@@ -574,7 +533,7 @@ void TileSetEditorWidget::CaptureLayer(shared_ptr<TileSetFloatingLayer> layer)
 }
 
 
-void TileSetEditorWidget::ApplyLayer(shared_ptr<TileSetFloatingLayer> layer)
+void SpriteEditorWidget::ApplyLayer(shared_ptr<TileSetFloatingLayer> layer)
 {
 	if (!layer)
 		return;
@@ -602,39 +561,39 @@ void TileSetEditorWidget::ApplyLayer(shared_ptr<TileSetFloatingLayer> layer)
 		}
 	}
 
-	m_mainWindow->UpdateTileSetContents(m_tileSet);
+	m_mainWindow->UpdateSpriteContents(m_sprite);
 }
 
 
-void TileSetEditorWidget::UpdateSelectionLayer(QMouseEvent* event)
+void SpriteEditorWidget::UpdateSelectionLayer(QMouseEvent* event)
 {
 	int startX = m_startX;
 	int startY = m_startY;
 	int curX = event->x() / m_zoom;
 	int curY = event->y() / m_zoom;
 
-	int tileSetWidth = (int)(m_columns * m_tileSet->GetWidth());
-	int tileSetHeight = (int)(m_rows * m_tileSet->GetHeight());
+	int tileWidth = (int)m_sprite->GetWidth();
+	int tileHeight = (int)m_sprite->GetHeight();
 
-	if ((tileSetWidth == 0) || (tileSetHeight == 0))
+	if ((tileWidth == 0) || (tileHeight == 0))
 		return;
 
 	if (startX < 0)
 		startX = 0;
-	if (startX >= tileSetWidth)
-		startX = tileSetWidth - 1;
+	if (startX >= tileWidth)
+		startX = tileWidth - 1;
 	if (startY < 0)
 		startY = 0;
-	if (startY >= tileSetHeight)
-		startY = tileSetHeight - 1;
+	if (startY >= tileHeight)
+		startY = tileHeight - 1;
 	if (curX < 0)
 		curX = 0;
-	if (curX >= tileSetWidth)
-		curX = tileSetWidth - 1;
+	if (curX >= tileWidth)
+		curX = tileWidth - 1;
 	if (curY < 0)
 		curY = 0;
-	if (curY >= tileSetHeight)
-		curY = tileSetHeight - 1;
+	if (curY >= tileHeight)
+		curY = tileHeight - 1;
 
 	int leftX = (startX < curX) ? startX : curX;
 	int rightX = (startX < curX) ? curX : startX;
@@ -669,7 +628,7 @@ void TileSetEditorWidget::UpdateSelectionLayer(QMouseEvent* event)
 }
 
 
-bool TileSetEditorWidget::IsMouseInSelection(QMouseEvent* event)
+bool SpriteEditorWidget::IsMouseInSelection(QMouseEvent* event)
 {
 	if (!m_selectionContents)
 		return false;
@@ -685,14 +644,14 @@ bool TileSetEditorWidget::IsMouseInSelection(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::BeginMoveSelectionLayer()
+void SpriteEditorWidget::BeginMoveSelectionLayer()
 {
 	ApplyLayer(m_underSelection);
 	m_floatingLayer = make_shared<TileSetFloatingLayer>(*m_selectionContents);
 }
 
 
-void TileSetEditorWidget::MoveSelectionLayer(QMouseEvent* event)
+void SpriteEditorWidget::MoveSelectionLayer(QMouseEvent* event)
 {
 	if (!m_floatingLayer)
 		return;
@@ -712,7 +671,7 @@ void TileSetEditorWidget::MoveSelectionLayer(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::FinishMoveSelectionLayer()
+void SpriteEditorWidget::FinishMoveSelectionLayer()
 {
 	SelectAction action;
 	action.oldSelectionContents = m_selectionContents;
@@ -732,7 +691,7 @@ void TileSetEditorWidget::FinishMoveSelectionLayer()
 }
 
 
-void TileSetEditorWidget::UpdateRectangleLayer(QMouseEvent* event)
+void SpriteEditorWidget::UpdateRectangleLayer(QMouseEvent* event)
 {
 	int curX = event->x() / m_zoom;
 	int curY = event->y() / m_zoom;
@@ -761,7 +720,7 @@ void TileSetEditorWidget::UpdateRectangleLayer(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::UpdateFilledRectangleLayer(QMouseEvent* event)
+void SpriteEditorWidget::UpdateFilledRectangleLayer(QMouseEvent* event)
 {
 	int curX = event->x() / m_zoom;
 	int curY = event->y() / m_zoom;
@@ -783,7 +742,7 @@ void TileSetEditorWidget::UpdateFilledRectangleLayer(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::UpdateLineLayer(QMouseEvent* event)
+void SpriteEditorWidget::UpdateLineLayer(QMouseEvent* event)
 {
 	int curX = event->x() / m_zoom;
 	int curY = event->y() / m_zoom;
@@ -858,14 +817,14 @@ void TileSetEditorWidget::UpdateLineLayer(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::Fill(QMouseEvent* event)
+void SpriteEditorWidget::Fill(QMouseEvent* event)
 {
 	int curX = event->x() / m_zoom;
 	int curY = event->y() / m_zoom;
 	TileSetFloatingLayerPixel replacement;
 	replacement.palette = m_palette;
 	replacement.entry = m_mouseDownPaletteEntry;
-	if ((m_mouseDownPaletteEntry == 0) || ((m_tileSet->GetDepth() == 4) && ((m_mouseDownPaletteEntry & 0xf) == 0)))
+	if ((m_mouseDownPaletteEntry == 0) || ((m_sprite->GetDepth() == 4) && ((m_mouseDownPaletteEntry & 0xf) == 0)))
 	{
 		// Transparent
 		replacement.palette.reset();
@@ -897,7 +856,7 @@ void TileSetEditorWidget::Fill(QMouseEvent* event)
 			if ((left.palette != target.palette) || (left.entry != target.entry))
 				break;
 		}
-		for (; end < (int)((m_columns * m_tileSet->GetWidth()) - 1); end++)
+		for (; end < (int)(m_sprite->GetWidth() - 1); end++)
 		{
 			TileSetFloatingLayerPixel right = GetPixel(end + 1, y);
 			if (!right.valid)
@@ -920,11 +879,11 @@ void TileSetEditorWidget::Fill(QMouseEvent* event)
 		}
 	}
 
-	m_mainWindow->UpdateTileSetContents(m_tileSet);
+	m_mainWindow->UpdateSpriteContents(m_sprite);
 }
 
 
-void TileSetEditorWidget::mousePressEvent(QMouseEvent* event)
+void SpriteEditorWidget::mousePressEvent(QMouseEvent* event)
 {
 	if (event->button() == Qt::LeftButton)
 		m_mouseDownPaletteEntry = m_leftPaletteEntry;
@@ -992,16 +951,14 @@ void TileSetEditorWidget::mousePressEvent(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::CommitPendingActions()
+void SpriteEditorWidget::CommitPendingActions()
 {
-	if ((m_pendingActions.size() != 0) || (m_pendingSelections.size() != 0) || (m_pendingSetColumns.size() != 0))
+	if ((m_pendingActions.size() != 0) || (m_pendingSelections.size() != 0))
 	{
 		vector<EditAction> editActions = m_pendingActions;
 		vector<SelectAction> selectActions = m_pendingSelections;
-		vector<SetDisplayColumnsAction> setColumnsActions = m_pendingSetColumns;
 		m_pendingActions.clear();
 		m_pendingSelections.clear();
-		m_pendingSetColumns.clear();
 
 		// Merge selection actions
 		if (selectActions.size() > 1)
@@ -1011,15 +968,9 @@ void TileSetEditorWidget::CommitPendingActions()
 			selectActions.erase(selectActions.begin() + 1, selectActions.end());
 		}
 
-		// Merge column actions
-		if (setColumnsActions.size() > 1)
-		{
-			setColumnsActions[0].newCols = setColumnsActions[setColumnsActions.size() - 1].newCols;
-			setColumnsActions.erase(setColumnsActions.begin() + 1, setColumnsActions.end());
-		}
-
-		shared_ptr<TileSet> tileSet = m_tileSet;
+		shared_ptr<Sprite> sprite = m_sprite;
 		MainWindow* mainWindow = m_mainWindow;
+		shared_ptr<SpriteAnimation> anim = m_animation;
 		uint16_t frame = m_frame;
 		m_mainWindow->AddUndoAction(
 			[=]() { // Undo
@@ -1027,7 +978,7 @@ void TileSetEditorWidget::CommitPendingActions()
 				for (size_t i = 0; i < editActions.size(); i++)
 				{
 					EditAction action = editActions[editActions.size() - (i + 1)];
-					shared_ptr<Tile> tile = tileSet->GetTile(action.tileIndex);
+					shared_ptr<Tile> tile = action.anim->GetTile();
 					if (!tile)
 						continue;
 					tile->GetData(frame)[action.offset] = action.oldData;
@@ -1039,7 +990,7 @@ void TileSetEditorWidget::CommitPendingActions()
 				}
 				for (auto& i : selectActions)
 				{
-					TileSetView* view = mainWindow->GetTileSetView(tileSet);
+					SpriteView* view = mainWindow->GetSpriteView(sprite);
 					if (!view)
 						break;
 					view->GetEditor()->m_selectionContents = i.oldSelectionContents;
@@ -1051,21 +1002,22 @@ void TileSetEditorWidget::CommitPendingActions()
 						view->UpdateToolState();
 					}
 				}
-				TileSetView* view = mainWindow->GetTileSetView(tileSet);
+				SpriteView* view = mainWindow->GetSpriteView(sprite);
 				if (view)
+				{
+					view->GetEditor()->m_animation = anim;
 					view->GetEditor()->m_frame = frame;
-				for (auto& i : setColumnsActions)
-					tileSet->SetDisplayColumns(i.oldCols);
+				}
 				for (auto& i : palettes)
 					mainWindow->UpdatePaletteContents(i);
-				mainWindow->UpdateTileSetContents(tileSet);
+				mainWindow->UpdateSpriteContents(sprite);
 			},
 			[=]() { // Redo
 				set<shared_ptr<Palette>> palettes;
 				for (size_t i = 0; i < editActions.size(); i++)
 				{
 					EditAction action = editActions[i];
-					shared_ptr<Tile> tile = tileSet->GetTile(action.tileIndex);
+					shared_ptr<Tile> tile = action.anim->GetTile();
 					if (!tile)
 						continue;
 					tile->GetData(frame)[action.offset] = action.newData;
@@ -1077,7 +1029,7 @@ void TileSetEditorWidget::CommitPendingActions()
 				}
 				for (auto& i : selectActions)
 				{
-					TileSetView* view = mainWindow->GetTileSetView(tileSet);
+					SpriteView* view = mainWindow->GetSpriteView(sprite);
 					if (!view)
 						break;
 					view->GetEditor()->m_selectionContents = i.newSelectionContents;
@@ -1089,20 +1041,21 @@ void TileSetEditorWidget::CommitPendingActions()
 						view->UpdateToolState();
 					}
 				}
-				TileSetView* view = mainWindow->GetTileSetView(tileSet);
+				SpriteView* view = mainWindow->GetSpriteView(sprite);
 				if (view)
+				{
+					view->GetEditor()->m_animation = anim;
 					view->GetEditor()->m_frame = frame;
-				for (auto& i : setColumnsActions)
-					tileSet->SetDisplayColumns(i.newCols);
+				}
 				for (auto& i : palettes)
 					mainWindow->UpdatePaletteContents(i);
-				mainWindow->UpdateTileSetContents(tileSet);
+				mainWindow->UpdateSpriteContents(sprite);
 			});
 	}
 }
 
 
-void TileSetEditorWidget::mouseReleaseEvent(QMouseEvent* event)
+void SpriteEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 {
 	if (!m_mouseDown)
 		return;
@@ -1152,7 +1105,7 @@ void TileSetEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::mouseMoveEvent(QMouseEvent* event)
+void SpriteEditorWidget::mouseMoveEvent(QMouseEvent* event)
 {
 	if (m_tool != SelectTool)
 		m_showHover = true;
@@ -1201,14 +1154,14 @@ void TileSetEditorWidget::mouseMoveEvent(QMouseEvent* event)
 }
 
 
-void TileSetEditorWidget::leaveEvent(QEvent*)
+void SpriteEditorWidget::leaveEvent(QEvent*)
 {
 	m_showHover = false;
 	update();
 }
 
 
-void TileSetEditorWidget::SetTool(EditorTool tool)
+void SpriteEditorWidget::SetTool(EditorTool tool)
 {
 	m_tool = tool;
 
@@ -1228,21 +1181,12 @@ void TileSetEditorWidget::SetTool(EditorTool tool)
 }
 
 
-void TileSetEditorWidget::FlipHorizontal()
+void SpriteEditorWidget::FlipHorizontal()
 {
 	shared_ptr<TileSetFloatingLayer> layer = m_selectionContents;
 	if (!layer)
 	{
-		if (m_tileSet->GetTileCount() != (m_rows * m_columns))
-		{
-			QMessageBox::critical(this, "Error", "This tile set is not rectangular. To flip, either "
-				"select the region to flip or adjust the tiles per row so that the tile set is "
-				"rectangular.");
-			return;
-		}
-
-		layer = make_shared<TileSetFloatingLayer>(0, 0, m_columns * m_tileSet->GetWidth(),
-			m_rows * m_tileSet->GetHeight());
+		layer = make_shared<TileSetFloatingLayer>(0, 0, m_sprite->GetWidth(), m_sprite->GetHeight());
 		CaptureLayer(layer);
 	}
 
@@ -1270,21 +1214,12 @@ void TileSetEditorWidget::FlipHorizontal()
 }
 
 
-void TileSetEditorWidget::FlipVertical()
+void SpriteEditorWidget::FlipVertical()
 {
 	shared_ptr<TileSetFloatingLayer> layer = m_selectionContents;
 	if (!layer)
 	{
-		if (m_tileSet->GetTileCount() != (m_rows * m_columns))
-		{
-			QMessageBox::critical(this, "Error", "This tile set is not rectangular. To flip, either "
-				"select the region to flip or adjust the tiles per row so that the tile set is "
-				"rectangular.");
-			return;
-		}
-
-		layer = make_shared<TileSetFloatingLayer>(0, 0, m_columns * m_tileSet->GetWidth(),
-			m_rows * m_tileSet->GetHeight());
+		layer = make_shared<TileSetFloatingLayer>(0, 0, m_sprite->GetWidth(), m_sprite->GetHeight());
 		CaptureLayer(layer);
 	}
 
@@ -1312,32 +1247,13 @@ void TileSetEditorWidget::FlipVertical()
 }
 
 
-void TileSetEditorWidget::Rotate()
+void SpriteEditorWidget::Rotate()
 {
-	int oldCols = m_tileSet->GetDisplayColumns();
-	int newCols = oldCols;
-
 	shared_ptr<TileSetFloatingLayer> layer = m_selectionContents;
 	if (!layer)
 	{
-		if (m_tileSet->GetTileCount() != (m_rows * m_columns))
-		{
-			QMessageBox::critical(this, "Error", "This tile set is not rectangular. To rotate, either "
-				"select the region to rotate or adjust the tiles per row so that the tile set is "
-				"rectangular.");
-			return;
-		}
-
-		layer = make_shared<TileSetFloatingLayer>(0, 0, m_columns * m_tileSet->GetWidth(),
-			m_rows * m_tileSet->GetHeight());
+		layer = make_shared<TileSetFloatingLayer>(0, 0, m_sprite->GetWidth(), m_sprite->GetHeight());
 		CaptureLayer(layer);
-
-		// Also rotate displayed area
-		int cols = m_columns;
-		m_columns = m_rows;
-		m_rows = cols;
-
-		newCols = m_columns;
 	}
 
 	shared_ptr<TileSetFloatingLayer> newLayer = make_shared<TileSetFloatingLayer>(layer->GetX(), layer->GetY(),
@@ -1354,10 +1270,10 @@ void TileSetEditorWidget::Rotate()
 
 		int posX = centerX - (newLayer->GetWidth() / 2);
 		int posY = centerY - (newLayer->GetHeight() / 2);
-		if ((posX + newLayer->GetWidth()) > (int)(m_columns * m_tileSet->GetWidth()))
-			posX = (m_columns * m_tileSet->GetWidth()) - newLayer->GetWidth();
-		if ((posY + newLayer->GetHeight()) > (int)(m_rows * m_tileSet->GetHeight()))
-			posY = (m_rows * m_tileSet->GetHeight()) - newLayer->GetHeight();
+		if ((posX + newLayer->GetWidth()) > (int)m_sprite->GetWidth())
+			posX = m_sprite->GetWidth() - newLayer->GetWidth();
+		if ((posY + newLayer->GetHeight()) > (int)m_sprite->GetHeight())
+			posY = m_sprite->GetHeight() - newLayer->GetHeight();
 		if (posX < 0)
 			posX = 0;
 		if (posY < 0)
@@ -1379,26 +1295,23 @@ void TileSetEditorWidget::Rotate()
 
 	ApplyLayer(newLayer);
 
-	if (oldCols != newCols)
+	if (layer == m_selectionContents)
 	{
-		SetDisplayColumnsAction colAction;
-		colAction.oldCols = oldCols;
-		colAction.newCols = newCols;
-		m_pendingSetColumns.push_back(colAction);
+		SelectAction action;
+		action.oldSelectionContents = m_selectionContents;
+		action.oldUnderSelection = m_underSelection;
+		action.newSelectionContents = newLayer;
+		action.newUnderSelection = m_underSelection;
+		m_pendingSelections.push_back(action);
 
-		m_tileSet->SetDisplayColumns(newCols);
+		m_selectionContents = newLayer;
 	}
 
 	CommitPendingActions();
-
-	if (layer == m_selectionContents)
-		m_selectionContents = newLayer;
-
-	m_mainWindow->UpdateTileSetContents(m_tileSet);
 }
 
 
-void TileSetEditorWidget::ZoomIn()
+void SpriteEditorWidget::ZoomIn()
 {
 	if (m_zoom < 32)
 	{
@@ -1408,7 +1321,7 @@ void TileSetEditorWidget::ZoomIn()
 }
 
 
-void TileSetEditorWidget::ZoomOut()
+void SpriteEditorWidget::ZoomOut()
 {
 	if (m_zoom > 1)
 	{
@@ -1418,7 +1331,7 @@ void TileSetEditorWidget::ZoomOut()
 }
 
 
-bool TileSetEditorWidget::Cut()
+bool SpriteEditorWidget::Cut()
 {
 	if (!m_selectionContents)
 		return false;
@@ -1438,7 +1351,7 @@ bool TileSetEditorWidget::Cut()
 }
 
 
-bool TileSetEditorWidget::Copy()
+bool SpriteEditorWidget::Copy()
 {
 	if (!m_selectionContents)
 		return false;
@@ -1506,7 +1419,7 @@ bool TileSetEditorWidget::Copy()
 }
 
 
-bool TileSetEditorWidget::Paste()
+bool SpriteEditorWidget::Paste()
 {
 	QClipboard* clipboard = QGuiApplication::clipboard();
 	QString text = clipboard->text();
@@ -1547,10 +1460,10 @@ bool TileSetEditorWidget::Paste()
 
 		int posX = centerX - (width / 2);
 		int posY = centerY - (height / 2);
-		if ((posX + width) > (int)(m_columns * m_tileSet->GetWidth()))
-			posX = (m_columns * m_tileSet->GetWidth()) - width;
-		if ((posY + height) > (int)(m_rows * m_tileSet->GetHeight()))
-			posY = (m_rows * m_tileSet->GetHeight()) - height;
+		if ((posX + width) > (int)m_sprite->GetWidth())
+			posX = m_sprite->GetWidth() - width;
+		if ((posY + height) > (int)m_sprite->GetHeight())
+			posY = m_sprite->GetHeight() - height;
 		if (posX < 0)
 			posX = 0;
 		if (posY < 0)
@@ -1608,7 +1521,7 @@ bool TileSetEditorWidget::Paste()
 }
 
 
-void TileSetEditorWidget::SelectAll()
+void SpriteEditorWidget::SelectAll()
 {
 	m_tool = SelectTool;
 	m_showHover = false;
@@ -1617,8 +1530,8 @@ void TileSetEditorWidget::SelectAll()
 	action.oldSelectionContents = m_selectionContents;
 	action.oldUnderSelection = m_underSelection;
 
-	int width = (int)(m_columns * m_tileSet->GetWidth());
-	int height = (int)(m_rows * m_tileSet->GetHeight());
+	int width = (int)m_sprite->GetWidth();
+	int height = (int)m_sprite->GetHeight();
 
 	m_selectionContents = make_shared<TileSetFloatingLayer>(0, 0, width, height);
 	m_underSelection = make_shared<TileSetFloatingLayer>(0, 0, width, height);

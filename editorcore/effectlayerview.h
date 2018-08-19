@@ -34,6 +34,10 @@ class EffectLayerView: public EditorView
 	ToolWidget* m_zoomInMode;
 	ToolWidget* m_zoomOutMode;
 
+	QTimer* m_deferredUpdateTimer;
+	std::chrono::steady_clock::time_point m_lastUpdate;
+	bool m_firstUpdate;
+
 public:
 	EffectLayerView(MainWindow* parent, std::shared_ptr<Project> project,
 		std::shared_ptr<MapLayer> layer);
@@ -48,4 +52,7 @@ public:
 	virtual void Copy() override;
 	virtual void Paste() override;
 	virtual void SelectAll() override;
+
+private slots:
+	void OnDeferredUpdateTimer();
 };

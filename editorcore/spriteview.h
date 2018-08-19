@@ -3,33 +3,32 @@
 #include <QWidget>
 #include <QLabel>
 #include <QCheckBox>
+#include <chrono>
 #include "project.h"
-#include "tileset.h"
-#include "tileseteditorwidget.h"
-#include "tilesetpreviewwidget.h"
-#include "tilesetanimationwidget.h"
-#include "tilesetpalettewidget.h"
+#include "sprite.h"
+#include "spriteeditorwidget.h"
+#include "spritepreviewwidget.h"
+#include "spriteanimationwidget.h"
+#include "spritepalettewidget.h"
 #include "toolwidget.h"
 #include "editorview.h"
 
 class MainWindow;
 
-class TileSetView: public EditorView
+class SpriteView: public EditorView
 {
 	Q_OBJECT
 
-	TileSetEditorWidget* m_editor;
-	TileSetPreviewWidget* m_preview;
-	TileSetAnimationWidget* m_anim;
-	TileSetPaletteWidget* m_palettes;
-	TileSetPaletteWidget* m_activePalette;
-	QLabel* m_colCount;
-	QLabel* m_tileCount;
+	SpriteEditorWidget* m_editor;
+	SpritePreviewWidget* m_preview;
+	SpriteAnimationWidget* m_anim;
+	SpritePaletteWidget* m_palettes;
+	SpritePaletteWidget* m_activePalette;
 	QCheckBox* m_previewAnim;
 
 	MainWindow* m_mainWindow;
 	std::shared_ptr<Project> m_project;
-	std::shared_ptr<TileSet> m_tileSet;
+	std::shared_ptr<Sprite> m_sprite;
 
 	ToolWidget* m_selectMode;
 	ToolWidget* m_penMode;
@@ -48,14 +47,14 @@ class TileSetView: public EditorView
 	bool m_firstUpdate;
 
 public:
-	TileSetView(MainWindow* parent, std::shared_ptr<Project> project,
-		std::shared_ptr<TileSet> tileSet);
+	SpriteView(MainWindow* parent, std::shared_ptr<Project> project,
+		std::shared_ptr<Sprite> sprite);
 
 	void UpdateView();
 	void UpdateToolState();
 
-	std::shared_ptr<TileSet> GetTileSet() const { return m_tileSet; }
-	TileSetEditorWidget* GetEditor() { return m_editor; }
+	std::shared_ptr<Sprite> GetSprite() const { return m_sprite; }
+	SpriteEditorWidget* GetEditor() { return m_editor; }
 
 	std::shared_ptr<Palette> GetSelectedPalette() const;
 	size_t GetSelectedLeftPaletteEntry() const;
@@ -69,8 +68,6 @@ public:
 	virtual void SelectAll() override;
 
 private slots:
-	void ChangeColumnCount();
-	void ResizeTileSet();
 	void SetPreviewAnimation(int state);
 	void OnDeferredUpdateTimer();
 };

@@ -11,6 +11,7 @@
 #include "addtilesetdialog.h"
 #include "addeffectlayerdialog.h"
 #include "addmapdialog.h"
+#include "addspritedialog.h"
 #include "mainwindow.h"
 #include "theme.h"
 
@@ -26,20 +27,34 @@ ProjectViewWidget::ProjectViewWidget(QWidget* parent, MainWindow* mainWindow):
 
 	QVBoxLayout* layout = new QVBoxLayout();
 
-	QHBoxLayout* paletteHeaderLayout = new QHBoxLayout();
-	QLabel* paletteLabel = new QLabel("Palettes");
+	QHBoxLayout* mapHeaderLayout = new QHBoxLayout();
+	QLabel* mapLabel = new QLabel("Maps");
 	QFont headerFont = QGuiApplication::font();
 	headerFont.setPointSize(headerFont.pointSize() * 5 / 4);
-	paletteLabel->setFont(headerFont);
-	paletteHeaderLayout->addWidget(paletteLabel, 1);
+	mapLabel->setFont(headerFont);
+	mapHeaderLayout->addWidget(mapLabel, 1);
 
-	QPushButton* paletteAddButton = new QPushButton("New...");
-	paletteHeaderLayout->addWidget(paletteAddButton);
+	QPushButton* mapAddButton = new QPushButton("New...");
+	mapHeaderLayout->addWidget(mapAddButton);
 
-	layout->addLayout(paletteHeaderLayout);
+	layout->addLayout(mapHeaderLayout);
 
-	m_paletteLayout = new QVBoxLayout();
-	layout->addLayout(m_paletteLayout);
+	m_mapLayout = new QVBoxLayout();
+	layout->addLayout(m_mapLayout);
+	layout->addSpacing(16);
+
+	QHBoxLayout* spriteHeaderLayout = new QHBoxLayout();
+	QLabel* spriteLabel = new QLabel("Sprites");
+	spriteLabel->setFont(headerFont);
+	spriteHeaderLayout->addWidget(spriteLabel, 1);
+
+	QPushButton* spriteAddButton = new QPushButton("New...");
+	spriteHeaderLayout->addWidget(spriteAddButton);
+
+	layout->addLayout(spriteHeaderLayout);
+
+	m_spriteLayout = new QVBoxLayout();
+	layout->addLayout(m_spriteLayout);
 	layout->addSpacing(16);
 
 	QHBoxLayout* tileSetHeaderLayout = new QHBoxLayout();
@@ -70,18 +85,18 @@ ProjectViewWidget::ProjectViewWidget(QWidget* parent, MainWindow* mainWindow):
 	layout->addLayout(m_effectLayerLayout);
 	layout->addSpacing(16);
 
-	QHBoxLayout* mapHeaderLayout = new QHBoxLayout();
-	QLabel* mapLabel = new QLabel("Maps");
-	mapLabel->setFont(headerFont);
-	mapHeaderLayout->addWidget(mapLabel, 1);
+	QHBoxLayout* paletteHeaderLayout = new QHBoxLayout();
+	QLabel* paletteLabel = new QLabel("Palettes");
+	paletteLabel->setFont(headerFont);
+	paletteHeaderLayout->addWidget(paletteLabel, 1);
 
-	QPushButton* mapAddButton = new QPushButton("New...");
-	mapHeaderLayout->addWidget(mapAddButton);
+	QPushButton* paletteAddButton = new QPushButton("New...");
+	paletteHeaderLayout->addWidget(paletteAddButton);
 
-	layout->addLayout(mapHeaderLayout);
+	layout->addLayout(paletteHeaderLayout);
 
-	m_mapLayout = new QVBoxLayout();
-	layout->addLayout(m_mapLayout);
+	m_paletteLayout = new QVBoxLayout();
+	layout->addLayout(m_paletteLayout);
 
 	layout->addStretch(1);
 	setLayout(layout);
@@ -90,6 +105,7 @@ ProjectViewWidget::ProjectViewWidget(QWidget* parent, MainWindow* mainWindow):
 	connect(tileSetAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddTileset);
 	connect(effectLayerAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddEffectLayer);
 	connect(mapAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddMap);
+	connect(spriteAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddSprite);
 }
 
 
@@ -503,6 +519,96 @@ void ProjectViewWidget::RemoveMap(shared_ptr<Map> map)
 }
 
 
+void ProjectViewWidget::RenameSprite(shared_ptr<Sprite> sprite)
+{
+	string oldName = sprite->GetName();
+	string newName;
+	if (ChooseName(oldName, newName, "Rename", "Name:"))
+	{
+		if ((newName.size() == 0) || (!m_project->RenameSprite(sprite, newName)))
+		{
+			QMessageBox::critical(this, "Error", "New sprite name is invalid or already in use.");
+			return;
+		}
+		m_mainWindow->UpdateSpriteName(sprite);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_project->RenameSprite(sprite, oldName);
+				m_mainWindow->UpdateSpriteName(sprite);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->RenameSprite(sprite, newName);
+				m_mainWindow->UpdateSpriteName(sprite);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::DuplicateSprite(shared_ptr<Sprite> sprite)
+{
+	string oldName = sprite->GetName();
+	string newName;
+	if (ChooseName(oldName, newName, "Duplicate", "Name of duplicated sprite:"))
+	{
+		shared_ptr<Sprite> newCopy = make_shared<Sprite>(*sprite);
+		newCopy->SetName(newName);
+		if ((newName.size() == 0) || (!m_project->AddSprite(newCopy)))
+		{
+			QMessageBox::critical(this, "Error", "New sprite name is invalid or already in use.");
+			return;
+		}
+		m_mainWindow->OpenSprite(newCopy);
+		m_mainWindow->UpdateSpriteContents(newCopy);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_mainWindow->CloseSprite(newCopy);
+				m_project->DeleteSprite(newCopy);
+				m_mainWindow->UpdateSpriteContents(newCopy);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->AddSprite(newCopy);
+				m_mainWindow->UpdateSpriteContents(newCopy);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::RemoveSprite(shared_ptr<Sprite> sprite)
+{
+	if (QMessageBox::question(this, "Delete Sprite", QString("Are you sure you want to remove the sprite '") +
+		QString::fromStdString(sprite->GetName()) + QString("'?"), QMessageBox::Yes,
+		QMessageBox::No | QMessageBox::Default | QMessageBox::Escape, QMessageBox::NoButton) !=
+		QMessageBox::Yes)
+		return;
+
+	m_mainWindow->CloseSprite(sprite);
+	m_project->DeleteSprite(sprite);
+	m_mainWindow->UpdateSpriteContents(sprite);
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			m_project->AddSprite(sprite);
+			m_mainWindow->UpdateSpriteContents(sprite);
+			UpdateList();
+		},
+		[=]() { // Redo
+			m_mainWindow->CloseSprite(sprite);
+			m_project->DeleteSprite(sprite);
+			m_mainWindow->UpdateSpriteContents(sprite);
+			UpdateList();
+		}
+	);
+	UpdateList();
+}
+
+
 void ProjectViewWidget::UpdateList()
 {
 	for (auto i : m_paletteItems)
@@ -525,11 +631,17 @@ void ProjectViewWidget::UpdateList()
 		m_mapLayout->removeWidget(i);
 		i->deleteLater();
 	}
+	for (auto i : m_spriteItems)
+	{
+		m_spriteLayout->removeWidget(i);
+		i->deleteLater();
+	}
 
 	m_paletteItems.clear();
 	m_tileSetItems.clear();
 	m_effectLayerItems.clear();
 	m_mapItems.clear();
+	m_spriteItems.clear();
 
 	for (auto& i : m_project->GetPalettes())
 	{
@@ -581,6 +693,19 @@ void ProjectViewWidget::UpdateList()
 		);
 		m_mapLayout->addWidget(item);
 		m_mapItems.push_back(item);
+	}
+
+	for (auto& i : m_project->GetSprites())
+	{
+		shared_ptr<Sprite> sprite = i.second;
+		ProjectItemWidget* item = new ProjectItemWidget(this, i.first,
+			[=]() { m_mainWindow->OpenSprite(sprite); },
+			[=]() { RenameSprite(sprite); },
+			[=]() { DuplicateSprite(sprite); },
+			[=]() { RemoveSprite(sprite); }
+		);
+		m_spriteLayout->addWidget(item);
+		m_spriteItems.push_back(item);
 	}
 }
 
@@ -687,6 +812,32 @@ void ProjectViewWidget::AddMap()
 			[=]() { // Redo
 				m_project->AddMap(map);
 				m_mainWindow->UpdateMapContents(map);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::AddSprite()
+{
+	AddSpriteDialog dialog(this, m_project);
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		shared_ptr<Sprite> sprite = dialog.GetResult();
+		m_mainWindow->UpdateSpriteContents(sprite);
+		m_mainWindow->OpenSprite(sprite);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_mainWindow->UpdateSpriteContents(sprite);
+				m_mainWindow->CloseSprite(sprite);
+				m_project->DeleteSprite(sprite);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->AddSprite(sprite);
+				m_mainWindow->UpdateSpriteContents(sprite);
 				UpdateList();
 			}
 		);

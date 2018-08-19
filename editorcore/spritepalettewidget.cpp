@@ -2,18 +2,18 @@
 #include <QGuiApplication>
 #include <QStyle>
 #include <QColorDialog>
-#include "tilesetpalettewidget.h"
+#include "spritepalettewidget.h"
 #include "theme.h"
 #include "paletteview.h"
-#include "tilesetview.h"
+#include "spriteview.h"
 #include "mainwindow.h"
 
 using namespace std;
 
 
-TileSetPaletteWidget::TileSetPaletteWidget(QWidget* parent, TileSetView* view, MainWindow* mainWindow,
-	shared_ptr<Project> project, shared_ptr<TileSet> tileSet, bool activeOnly):
-	QWidget(parent), m_mainWindow(mainWindow), m_view(view), m_project(project), m_tileSet(tileSet),
+SpritePaletteWidget::SpritePaletteWidget(QWidget* parent, SpriteView* view, MainWindow* mainWindow,
+	shared_ptr<Project> project, shared_ptr<Sprite> sprite, bool activeOnly):
+	QWidget(parent), m_mainWindow(mainWindow), m_view(view), m_project(project), m_sprite(sprite),
 	m_activeOnly(activeOnly)
 {
 	QVBoxLayout* layout = new QVBoxLayout();
@@ -29,7 +29,7 @@ TileSetPaletteWidget::TileSetPaletteWidget(QWidget* parent, TileSetView* view, M
 }
 
 
-void TileSetPaletteWidget::EditPaletteEntry(shared_ptr<Palette> palette, size_t i)
+void SpritePaletteWidget::EditPaletteEntry(shared_ptr<Palette> palette, size_t i)
 {
 	uint16_t existingRawColor = palette->GetEntry(i);
 	QColor existingColor = QColor::fromRgba(Palette::ToRGB32(existingRawColor) | 0xff000000);
@@ -54,7 +54,7 @@ void TileSetPaletteWidget::EditPaletteEntry(shared_ptr<Palette> palette, size_t 
 }
 
 
-void TileSetPaletteWidget::AddPaletteWidgets(shared_ptr<Palette> palette, int& row)
+void SpritePaletteWidget::AddPaletteWidgets(shared_ptr<Palette> palette, int& row)
 {
 	if (!m_activeOnly)
 	{
@@ -84,7 +84,7 @@ void TileSetPaletteWidget::AddPaletteWidgets(shared_ptr<Palette> palette, int& r
 	for (size_t i = 0; i < palette->GetEntryCount(); i++)
 	{
 		bool transparent = false;
-		if ((i == 0) || ((m_tileSet->GetDepth() == 4) && ((i & 0xf) == 0)))
+		if ((i == 0) || ((m_sprite->GetDepth() == 4) && ((i & 0xf) == 0)))
 			transparent = true;
 		int selection = 0;
 		if ((palette == m_view->GetSelectedPalette()) && (i == m_view->GetSelectedLeftPaletteEntry()))
@@ -104,7 +104,7 @@ void TileSetPaletteWidget::AddPaletteWidgets(shared_ptr<Palette> palette, int& r
 }
 
 
-void TileSetPaletteWidget::UpdateView()
+void SpritePaletteWidget::UpdateView()
 {
 	for (auto i : m_entries)
 	{
@@ -126,7 +126,7 @@ void TileSetPaletteWidget::UpdateView()
 	vector<shared_ptr<Palette>> availablePalettes;
 	for (auto& i : m_project->GetPalettes())
 	{
-		if (m_tileSet->UsesPalette(i.second))
+		if (m_sprite->UsesPalette(i.second))
 			usedPalettes.push_back(i.second);
 		else
 			availablePalettes.push_back(i.second);

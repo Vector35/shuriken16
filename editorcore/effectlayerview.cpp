@@ -93,17 +93,48 @@ EffectLayerView::EffectLayerView(MainWindow* parent, shared_ptr<Project> project
 	layout->addLayout(contentLayout, 1);
 	setLayout(layout);
 
+	m_deferredUpdateTimer = new QTimer(this);
+	m_deferredUpdateTimer->setInterval(250);
+	m_deferredUpdateTimer->setSingleShot(true);
+	connect(m_deferredUpdateTimer, &QTimer::timeout, this, &EffectLayerView::OnDeferredUpdateTimer);
+	m_lastUpdate = chrono::steady_clock::now();
+	m_firstUpdate = true;
+
 	UpdateView();
 }
 
 
 void EffectLayerView::UpdateView()
 {
+	m_editor->UpdateView();
+
+	auto sinceLastUpdate = chrono::steady_clock::now() - m_lastUpdate;
+	double t = chrono::duration_cast<chrono::milliseconds>(sinceLastUpdate).count();
+	if (m_firstUpdate || (t > 250))
+	{
+		m_mapSize->setText(QString::asprintf("%u x %u layer", (unsigned)m_layer->GetWidth(),
+			(unsigned)m_layer->GetHeight()));
+		m_settings->UpdateView();
+		m_tiles->UpdateView();
+	}
+	else
+	{
+		m_deferredUpdateTimer->stop();
+		m_deferredUpdateTimer->start();
+	}
+
+	m_lastUpdate = chrono::steady_clock::now();
+	m_firstUpdate = false;
+}
+
+
+void EffectLayerView::OnDeferredUpdateTimer()
+{
 	m_mapSize->setText(QString::asprintf("%u x %u layer", (unsigned)m_layer->GetWidth(),
 		(unsigned)m_layer->GetHeight()));
-	m_editor->UpdateView();
 	m_settings->UpdateView();
 	m_tiles->UpdateView();
+	m_lastUpdate = chrono::steady_clock::now();
 }
 
 

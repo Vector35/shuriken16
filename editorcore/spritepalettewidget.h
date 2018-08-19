@@ -3,20 +3,20 @@
 #include <QWidget>
 #include <QGridLayout>
 #include "project.h"
-#include "tileset.h"
+#include "sprite.h"
 #include "palette.h"
 
 class MainWindow;
-class TileSetView;
+class SpriteView;
 
-class TileSetPaletteWidget: public QWidget
+class SpritePaletteWidget: public QWidget
 {
 	Q_OBJECT
 
 	MainWindow* m_mainWindow;
-	TileSetView* m_view;
+	SpriteView* m_view;
 	std::shared_ptr<Project> m_project;
-	std::shared_ptr<TileSet> m_tileSet;
+	std::shared_ptr<Sprite> m_sprite;
 	bool m_activeOnly;
 
 	QGridLayout* m_entryLayout;
@@ -26,8 +26,8 @@ class TileSetPaletteWidget: public QWidget
 	void AddPaletteWidgets(std::shared_ptr<Palette> palette, int& row);
 
 public:
-	TileSetPaletteWidget(QWidget* parent, TileSetView* view, MainWindow* mainWindow,
-		std::shared_ptr<Project> project, std::shared_ptr<TileSet> tileSet, bool activeOnly);
+	SpritePaletteWidget(QWidget* parent, SpriteView* view, MainWindow* mainWindow,
+		std::shared_ptr<Project> project, std::shared_ptr<Sprite> sprite, bool activeOnly);
 
 	void UpdateView();
 };

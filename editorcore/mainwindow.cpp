@@ -3,6 +3,7 @@
 #include "tilesetview.h"
 #include "effectlayerview.h"
 #include "mapview.h"
+#include "spriteview.h"
 #include "editorview.h"
 #include <QMenu>
 #include <QMenuBar>
@@ -173,6 +174,8 @@ void MainWindow::UpdatePaletteName(shared_ptr<Palette> palette)
 
 	for (auto& i : m_openTileSets)
 		i.second->UpdateView();
+	for (auto& i : m_openSprites)
+		i.second->UpdateView();
 }
 
 
@@ -185,6 +188,8 @@ void MainWindow::UpdatePaletteContents(shared_ptr<Palette> palette)
 	}
 
 	for (auto& i : m_openTileSets)
+		i.second->UpdateView();
+	for (auto& i : m_openSprites)
 		i.second->UpdateView();
 	for (auto& i : m_openEffectLayers)
 		i.second->UpdateView();
@@ -396,6 +401,70 @@ MapView* MainWindow::GetMapView(std::shared_ptr<Map> map)
 {
 	auto i = m_openMaps.find(map);
 	if (i != m_openMaps.end())
+		return i->second;
+	return nullptr;
+}
+
+
+void MainWindow::OpenSprite(shared_ptr<Sprite> sprite)
+{
+	auto i = m_openSprites.find(sprite);
+	if (i != m_openSprites.end())
+	{
+		m_tabs->setCurrentWidget(i->second);
+		return;
+	}
+
+	SpriteView* editor = new SpriteView(this, m_project, sprite);
+	m_tabs->addTab(editor, QString::fromStdString(sprite->GetName()));
+	m_tabs->setCurrentWidget(editor);
+	m_openSprites[sprite] = editor;
+}
+
+
+void MainWindow::CloseSprite(shared_ptr<Sprite> sprite)
+{
+	auto i = m_openSprites.find(sprite);
+	if (i != m_openSprites.end())
+	{
+		int j = m_tabs->indexOf(i->second);
+		if (j != -1)
+		{
+			m_openSprites.erase(i);
+			m_tabs->removeTab(j);
+		}
+		return;
+	}
+}
+
+
+void MainWindow::UpdateSpriteName(shared_ptr<Sprite> sprite)
+{
+	auto i = m_openSprites.find(sprite);
+	if (i != m_openSprites.end())
+	{
+		i->second->UpdateView();
+		int j = m_tabs->indexOf(i->second);
+		if (j != -1)
+			m_tabs->setTabText(j, QString::fromStdString(sprite->GetName()));
+	}
+}
+
+
+void MainWindow::UpdateSpriteContents(shared_ptr<Sprite> sprite)
+{
+	auto i = m_openSprites.find(sprite);
+	if (i != m_openSprites.end())
+	{
+		i->second->UpdateView();
+	}
+}
+
+
+SpriteView* MainWindow::GetSpriteView(std::shared_ptr<Sprite> sprite)
+{
+	auto i = m_openSprites.find(sprite);
+	if (i != m_openSprites.end())
 		return i->second;
 	return nullptr;
 }
@@ -679,6 +748,14 @@ void MainWindow::TabClose(int i)
 	if (mapView)
 	{
 		m_openMaps.erase(mapView->GetMap());
+		m_tabs->removeTab(i);
+		return;
+	}
+
+	SpriteView* spriteView = dynamic_cast<SpriteView*>(widget);
+	if (spriteView)
+	{
+		m_openSprites.erase(spriteView->GetSprite());
 		m_tabs->removeTab(i);
 		return;
 	}

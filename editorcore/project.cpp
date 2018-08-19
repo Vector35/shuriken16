@@ -206,10 +206,65 @@ void Project::DeleteMap(shared_ptr<Map> map)
 }
 
 
+shared_ptr<Sprite> Project::GetSpriteByName(const string& name)
+{
+	auto i = m_sprites.find(name);
+	if (i == m_sprites.end())
+		return shared_ptr<Sprite>();
+	return i->second;
+}
+
+
+bool Project::AddSprite(shared_ptr<Sprite> sprite)
+{
+	string name = sprite->GetName();
+	auto i = m_sprites.find(name);
+	if (i != m_sprites.end())
+		return false;
+	assert(m_spritesById.find(sprite->GetId()) == m_spritesById.end());
+	m_sprites[name] = sprite;
+	m_spritesById[sprite->GetId()] = sprite;
+	return true;
+}
+
+
+bool Project::RenameSprite(shared_ptr<Sprite> sprite, const string& name)
+{
+	if (name == sprite->GetName())
+		return true;
+	auto i = m_sprites.find(name);
+	if (i != m_sprites.end())
+		return false;
+	m_sprites.erase(sprite->GetName());
+	sprite->SetName(name);
+	m_sprites[name] = sprite;
+	return true;
+}
+
+
+void Project::DeleteSprite(shared_ptr<Sprite> sprite)
+{
+	m_sprites.erase(sprite->GetName());
+	m_spritesById.erase(sprite->GetId());
+}
+
+
 vector<shared_ptr<TileSet>> Project::GetTileSetsUsingPalette(shared_ptr<Palette> palette)
 {
 	vector<shared_ptr<TileSet>> result;
 	for (auto& i : m_tileSets)
+	{
+		if (i.second->UsesPalette(palette))
+			result.push_back(i.second);
+	}
+	return result;
+}
+
+
+vector<shared_ptr<Sprite>> Project::GetSpritesUsingPalette(shared_ptr<Palette> palette)
+{
+	vector<shared_ptr<Sprite>> result;
+	for (auto& i : m_sprites)
 	{
 		if (i.second->UsesPalette(palette))
 			result.push_back(i.second);
@@ -362,6 +417,18 @@ bool Project::Save(const QString& path)
 	}
 	project["maps"] = maps;
 
+	Json::Value sprites(Json::arrayValue);
+	for (auto& i : m_spritesById)
+	{
+		QString name = GetFileName(i.second->GetName(), i.second->GetId(), ".s16sprite");
+		sprites.append(name.toStdString());
+		files.insert(name);
+
+		if (!SaveProjectFile(path, name, i.second->Serialize()))
+			return false;
+	}
+	project["sprites"] = sprites;
+
 	if (!SaveProjectFile(path, "manifest.json", project))
 		return false;
 	files.insert("manifest.json");
@@ -421,6 +488,8 @@ shared_ptr<Project> Project::Open(const QString& path)
 	project->m_tileSetsById.clear();
 	project->m_maps.clear();
 	project->m_mapsById.clear();
+	project->m_sprites.clear();
+	project->m_spritesById.clear();
 
 	for (auto& i : manifest["palettes"])
 	{
@@ -546,6 +615,37 @@ shared_ptr<Project> Project::Open(const QString& path)
 		project->m_mapsById[map->GetId()] = map;
 	}
 
+	for (auto& i : manifest["sprites"])
+	{
+		Json::Value data;
+		if (!ReadProjectFile(path, QString::fromStdString(i.asString()), data))
+		{
+			QMessageBox::critical(nullptr, "Error", QString("Unable to read sprite '") +
+				QString::fromStdString(i.asString()) + QString("'."));
+			return nullptr;
+		}
+
+		shared_ptr<Sprite> sprite = Sprite::Deserialize(project, data);
+		if (!sprite)
+		{
+			if (i.isMember("name"))
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Sprite '") +
+					QString::fromStdString(i["name"].asString()) +
+					QString("' could not be read from project file."));
+			}
+			else
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Sprite with missing name could not be read from "
+					"project file."));
+			}
+			return nullptr;
+		}
+
+		project->m_sprites[sprite->GetName()] = sprite;
+		project->m_spritesById[sprite->GetId()] = sprite;
+	}
+
 	return project;
 }
 
@@ -582,5 +682,14 @@ shared_ptr<Map> Project::GetMapById(const string& id)
 	auto i = m_mapsById.find(id);
 	if (i == m_mapsById.end())
 		return shared_ptr<Map>();
+	return i->second;
+}
+
+
+shared_ptr<Sprite> Project::GetSpriteById(const string& id)
+{
+	auto i = m_spritesById.find(id);
+	if (i == m_spritesById.end())
+		return shared_ptr<Sprite>();
 	return i->second;
 }

@@ -46,6 +46,16 @@ SOURCES += \
 	editorview.cpp \
 	animation.cpp \
 	layersettingsdialog.cpp \
+	sprite.cpp \
+	spriteanimation.cpp \
+	addspritedialog.cpp \
+	spriteview.cpp \
+	spriteeditorwidget.cpp \
+	spritepreviewwidget.cpp \
+	spriteanimationwidget.cpp \
+	spriteanimationheaderwidget.cpp \
+	spritepalettewidget.cpp \
+	animationsettingsdialog.cpp \
 	json/jsoncpp.cpp
 
 HEADERS += \
@@ -86,4 +96,14 @@ HEADERS += \
 	editorview.h \
 	animation.h \
 	layersettingsdialog.h \
+	sprite.h \
+	spriteanimation.h \
+	addspritedialog.h \
+	spriteview.h \
+	spriteeditorwidget.h \
+	spritepreviewwidget.h \
+	spriteanimationwidget.h \
+	spriteanimationheaderwidget.h \
+	spritepalettewidget.h \
+	animationsettingsdialog.h \
 	json/json.h

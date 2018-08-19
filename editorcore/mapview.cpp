@@ -69,28 +69,38 @@ MapView::MapView(MainWindow* parent, shared_ptr<Project> project, shared_ptr<Map
 
 	layout->addLayout(headerLayout);
 
-	QScrollArea* layerAndTileScrollArea = new QScrollArea(this);
-	QWidget* layerAndTiles = new QWidget(this);
-	QVBoxLayout* layerAndTileLayout = new QVBoxLayout();
-	layerAndTileLayout->setContentsMargins(8, 8, 8, 8);
-	m_layers = new MapLayerWidget(layerAndTiles, m_editor, parent, project, map);
+	QVBoxLayout* rightLayout = new QVBoxLayout();
+	m_layers = new MapLayerWidget(this, m_editor, parent, project, map);
 	m_editor->SetLayerWidget(m_layers);
-	layerAndTileLayout->addWidget(m_layers);
-	layerAndTileLayout->addSpacing(16);
-	m_tiles = new MapTileWidget(layerAndTiles, m_editor, parent, project, map);
+	rightLayout->addWidget(m_layers);
+	rightLayout->addSpacing(16);
+
+	QScrollArea* tileScrollArea = new QScrollArea(this);
+	QWidget* tiles = new QWidget(this);
+	QVBoxLayout* tileLayout = new QVBoxLayout();
+	tileLayout->setContentsMargins(8, 8, 8, 8);
+	m_tiles = new MapTileWidget(tiles, m_editor, parent, project, map);
 	m_editor->SetTileWidget(m_tiles);
-	layerAndTileLayout->addWidget(m_tiles);
-	layerAndTileLayout->addStretch(1);
-	layerAndTiles->setLayout(layerAndTileLayout);
-	layerAndTileScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	layerAndTileScrollArea->setWidgetResizable(true);
-	layerAndTileScrollArea->setAlignment(Qt::AlignTop);
-	layerAndTileScrollArea->setWidget(layerAndTiles);
-	layerAndTileScrollArea->horizontalScrollBar()->setEnabled(false);
-	contentLayout->addWidget(layerAndTileScrollArea);
+	tileLayout->addWidget(m_tiles);
+	tileLayout->addStretch(1);
+	tiles->setLayout(tileLayout);
+	tileScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	tileScrollArea->setWidgetResizable(true);
+	tileScrollArea->setAlignment(Qt::AlignTop);
+	tileScrollArea->setWidget(tiles);
+	tileScrollArea->horizontalScrollBar()->setEnabled(false);
+	rightLayout->addWidget(tileScrollArea);
+	contentLayout->addLayout(rightLayout);
 
 	layout->addLayout(contentLayout, 1);
 	setLayout(layout);
+
+	m_deferredUpdateTimer = new QTimer(this);
+	m_deferredUpdateTimer->setInterval(250);
+	m_deferredUpdateTimer->setSingleShot(true);
+	connect(m_deferredUpdateTimer, &QTimer::timeout, this, &MapView::OnDeferredUpdateTimer);
+	m_lastUpdate = chrono::steady_clock::now();
+	m_firstUpdate = true;
 
 	UpdateView();
 }
@@ -109,11 +119,35 @@ void MapView::UpdateToolState()
 
 void MapView::UpdateView()
 {
+	m_editor->UpdateView();
+
+	auto sinceLastUpdate = chrono::steady_clock::now() - m_lastUpdate;
+	double t = chrono::duration_cast<chrono::milliseconds>(sinceLastUpdate).count();
+	if (m_firstUpdate || (t > 250))
+	{
+		m_mapSize->setText(QString::asprintf("%u x %u map", (unsigned)m_map->GetMainLayer()->GetWidth(),
+			(unsigned)m_map->GetMainLayer()->GetHeight()));
+		m_layers->UpdateView();
+		m_tiles->UpdateView();
+	}
+	else
+	{
+		m_deferredUpdateTimer->stop();
+		m_deferredUpdateTimer->start();
+	}
+
+	m_lastUpdate = chrono::steady_clock::now();
+	m_firstUpdate = false;
+}
+
+
+void MapView::OnDeferredUpdateTimer()
+{
 	m_mapSize->setText(QString::asprintf("%u x %u map", (unsigned)m_map->GetMainLayer()->GetWidth(),
 		(unsigned)m_map->GetMainLayer()->GetHeight()));
-	m_editor->UpdateView();
 	m_layers->UpdateView();
 	m_tiles->UpdateView();
+	m_lastUpdate = chrono::steady_clock::now();
 }
 
 

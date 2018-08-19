@@ -2,5 +2,6 @@
    "effect_layers" : [],
    "maps" : [],
    "palettes" : [ "Black_and_White.e9b5a0299fdf4d38ad7aa970a217ecc2.s16pal" ],
+   "sprites" : [],
    "tilesets" : [ "Default_Text.8ed4ec173d52467ab089c8c9451bddc7.s16tile" ]
 }

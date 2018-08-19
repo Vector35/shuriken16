@@ -33,7 +33,7 @@ MapLayerWidget::MapLayerWidget(QWidget* parent, MapEditorWidget* editor, MainWin
 	QPushButton* addLayer = new QPushButton("New...");
 	connect(addLayer, &QPushButton::clicked, this, &MapLayerWidget::OnAddLayer);
 	headerLayout->addWidget(addLayer);
-	headerLayout->addSpacing(8);
+	headerLayout->addSpacing(16);
 	layout->addLayout(headerLayout);
 
 	m_entryLayout = new QVBoxLayout();
