@@ -220,14 +220,14 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 			p.setPen(Qt::NoPen);
 			p.drawRect(tileWidth * tileX, tileHeight * tileY, tileWidth, tileHeight);
 
-			for (int y = 0; y < (int)m_tileSet->GetWidth(); y++)
+			for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
 			{
 				if ((tileY * tileHeight + (y + 1) * m_zoom) < event->rect().top())
 					continue;
 				if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
 					break;
 
-				for (int x = 0; x < (int)m_tileSet->GetHeight(); x++)
+				for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
 				{
 					if ((tileX * tileWidth + (x + 1) * m_zoom) < event->rect().left())
 						continue;
@@ -237,9 +237,9 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 					shared_ptr<Palette> palette = tile->GetPalette();
 					uint8_t colorIndex;
 					if (tile->GetDepth() == 4)
-						colorIndex = (tile->GetData(m_frame)[(y * tile->GetWidth() / 2) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
+						colorIndex = (tile->GetData(m_frame)[(y * tile->GetPitch()) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
 					else
-						colorIndex = tile->GetData(m_frame)[(y * tile->GetWidth()) + x];
+						colorIndex = tile->GetData(m_frame)[(y * tile->GetPitch()) + x];
 					if (paletteOverride)
 						colorIndex += paletteOverrideOffset;
 					else
@@ -281,14 +281,14 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 
 			if (m_zoom >= 8)
 			{
-				for (int y = 0; y < (int)m_tileSet->GetWidth(); y++)
+				for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
 				{
 					if ((tileY * tileHeight + (y + 1) * m_zoom) < event->rect().top())
 						continue;
 					if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
 						break;
 
-					for (int x = 0; x < (int)m_tileSet->GetHeight(); x++)
+					for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
 					{
 						if ((tileX * tileWidth + (x + 1) * m_zoom) < event->rect().left())
 							continue;
@@ -304,14 +304,14 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 
 			if (m_zoom >= 4)
 			{
-				for (int y = 0; y < (int)m_tileSet->GetWidth(); y += 8)
+				for (int y = 0; y < (int)m_tileSet->GetHeight(); y += 8)
 				{
 					if ((tileY * tileHeight + (y + 8) * m_zoom) < event->rect().top())
 						continue;
 					if ((tileY * tileHeight + y * m_zoom) > event->rect().bottom())
 						break;
 
-					for (int x = 0; x < (int)m_tileSet->GetHeight(); x += 8)
+					for (int x = 0; x < (int)m_tileSet->GetWidth(); x += 8)
 					{
 						if ((tileX * tileWidth + (x + 8) * m_zoom) < event->rect().left())
 							continue;
@@ -394,12 +394,12 @@ TileSetFloatingLayerPixel TileSetEditorWidget::GetPixel(int x, int y)
 	uint8_t colorIndex;
 	if (tile->GetDepth() == 4)
 	{
-		size_t offset = (pixelY * tile->GetWidth() / 2) + (pixelX / 2);
+		size_t offset = (pixelY * tile->GetPitch()) + (pixelX / 2);
 		colorIndex = (tile->GetData(m_frame)[offset] >> ((x & 1) << 2)) & 0xf;
 	}
 	else
 	{
-		size_t offset = (pixelY * tile->GetWidth()) + pixelX;
+		size_t offset = (pixelY * tile->GetPitch()) + pixelX;
 		colorIndex = tile->GetData(m_frame)[offset];
 	}
 
@@ -447,15 +447,15 @@ void TileSetEditorWidget::SetPixel(int x, int y, shared_ptr<Palette> palette, ui
 	{
 		colorIndex = (uint8_t)(entry & 0xf);
 		paletteOffset = (uint8_t)(entry & 0xf0);
-		offset = (pixelY * tile->GetWidth() / 2) + (pixelX / 2);
+		offset = (pixelY * tile->GetPitch()) + (pixelX / 2);
 		data = &tile->GetData(m_frame)[offset];
-		newData = ((*data) & (0xf0 >> ((x & 1) << 2))) | (colorIndex << ((x & 1) << 2));
+		newData = ((*data) & (0xf0 >> ((pixelX & 1) << 2))) | (colorIndex << ((pixelX & 1) << 2));
 	}
 	else
 	{
 		colorIndex = entry;
 		paletteOffset = 0;
-		offset = (pixelY * tile->GetWidth()) + pixelX;
+		offset = (pixelY * tile->GetPitch()) + pixelX;
 		data = &tile->GetData(m_frame)[offset];
 		newData = colorIndex;
 	}
@@ -559,12 +559,12 @@ void TileSetEditorWidget::CaptureLayer(shared_ptr<TileSetFloatingLayer> layer)
 			uint8_t colorIndex;
 			if (tile->GetDepth() == 4)
 			{
-				colorIndex = (tile->GetData(m_frame)[(tilePixelY * tile->GetWidth() / 2) +
+				colorIndex = (tile->GetData(m_frame)[(tilePixelY * tile->GetPitch()) +
 					(tilePixelX / 2)] >> ((tilePixelX & 1) << 2)) & 0xf;
 			}
 			else
 			{
-				colorIndex = tile->GetData(m_frame)[(tilePixelY * tile->GetWidth()) + tilePixelX];
+				colorIndex = tile->GetData(m_frame)[(tilePixelY * tile->GetPitch()) + tilePixelX];
 			}
 			colorIndex += tile->GetPaletteOffset();
 

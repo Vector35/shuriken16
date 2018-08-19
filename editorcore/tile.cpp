@@ -13,7 +13,8 @@ Tile::Tile(uint16_t width, uint16_t height, uint16_t depth, uint16_t frames)
 	m_height = height;
 	m_depth = depth;
 	m_frames = frames;
-	m_frameSize = ((size_t)m_width * (size_t)m_height * (size_t)m_depth) / 8;
+	m_pitch = (((size_t)m_width * (size_t)m_depth) + 7) / 8;
+	m_frameSize = m_pitch * (size_t)height;
 	m_size = m_frameSize * (size_t)m_frames;
 	m_data = new uint8_t[m_size];
 	memset(m_data, 0, m_size);
@@ -26,6 +27,7 @@ Tile::Tile(const Tile& other)
 	m_height = other.m_height;
 	m_depth = other.m_depth;
 	m_frames = other.m_frames;
+	m_pitch = other.m_pitch;
 	m_frameSize = other.m_frameSize;
 	m_size = other.m_size;
 	m_palette = other.m_palette;

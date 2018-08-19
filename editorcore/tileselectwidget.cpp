@@ -67,10 +67,10 @@ void TileSelectWidget::UpdateView()
 			size_t tileIndex = (size_t)((tileY * m_cols) + tileX);
 			if (tileIndex >= m_tileSet->GetTileCount())
 			{
-				for (int y = 0; y < (int)m_tileSet->GetWidth(); y++)
+				for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
 				{
 					uint32_t* line = (uint32_t*)m_image->scanLine(tileY * m_tileSet->GetHeight() + y);
-					for (int x = 0; x < (int)m_tileSet->GetHeight(); x++)
+					for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
 						line[tileX * m_tileSet->GetWidth() + x] = Theme::backgroundWindow.rgba();
 				}
 				continue;
@@ -86,16 +86,16 @@ void TileSelectWidget::UpdateView()
 			if ((tile->GetDepth() != m_tileSet->GetDepth()))
 				continue;
 
-			for (int y = 0; y < (int)m_tileSet->GetWidth(); y++)
+			for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
 			{
 				uint32_t* line = (uint32_t*)m_image->scanLine(tileY * m_tileSet->GetHeight() + y);
-				for (int x = 0; x < (int)m_tileSet->GetHeight(); x++)
+				for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
 				{
 					uint8_t colorIndex;
 					if (tile->GetDepth() == 4)
-						colorIndex = (tile->GetData()[(y * tile->GetWidth() / 2) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
+						colorIndex = (tile->GetData()[(y * tile->GetPitch()) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
 					else
-						colorIndex = tile->GetData()[(y * tile->GetWidth()) + x];
+						colorIndex = tile->GetData()[(y * tile->GetPitch()) + x];
 					if (colorIndex == 0)
 						continue;
 					if (!tile->GetPalette())

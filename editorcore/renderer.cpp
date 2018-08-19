@@ -80,8 +80,6 @@ void Renderer::RenderMapLayer(uint16_t* pixels, shared_ptr<MapLayer> layer, bool
 	uint16_t bottomTile = (scrollY + m_height - 1) / tileHeight;
 	uint16_t bottomPixel = (scrollY + m_height - 1) % tileHeight;
 
-	size_t tilePitch = tileWidth * tileDepth / 8;
-
 	// Render layer
 	uint16_t targetY = 0;
 	for (uint16_t tileY = topTile; tileY <= bottomTile; tileY++)
@@ -160,7 +158,7 @@ void Renderer::RenderMapLayer(uint16_t* pixels, shared_ptr<MapLayer> layer, bool
 
 			for (uint16_t pixelY = curTopPixel; pixelY <= curBottomPixel; pixelY++)
 			{
-				const uint8_t* tileDataRow = &tileData[pixelY * tilePitch];
+				const uint8_t* tileDataRow = &tileData[pixelY * tile->GetPitch()];
 				for (uint16_t pixelX = curLeftPixel; pixelX <= curRightPixel; pixelX++)
 				{
 					uint16_t color = 0;

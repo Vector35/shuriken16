@@ -36,24 +36,18 @@ AddMapDialog::AddMapDialog(QWidget* parent, shared_ptr<Project> project): QDialo
 
 	layout->addWidget(new QLabel("Tile Format:"));
 	QHBoxLayout* tileSizeLayout = new QHBoxLayout();
-	m_tileWidth = new QComboBox();
-	QStringList sizes;
-	sizes.append("8");
-	sizes.append("16");
-	sizes.append("32");
-	sizes.append("64");
-	sizes.append("128");
-	sizes.append("256");
-	sizes.append("512");
-	m_tileWidth->setEditable(false);
-	m_tileWidth->addItems(sizes);
-	m_tileWidth->setCurrentIndex(1);
+	m_tileWidth = new QSpinBox();
+	m_tileWidth->setMinimum(4);
+	m_tileWidth->setMaximum(512);
+	m_tileWidth->setValue(16);
+	m_tileWidth->setSingleStep(1);
 	tileSizeLayout->addWidget(m_tileWidth);
 	tileSizeLayout->addWidget(new QLabel(" x "));
-	m_tileHeight = new QComboBox();
-	m_tileHeight->setEditable(false);
-	m_tileHeight->addItems(sizes);
-	m_tileHeight->setCurrentIndex(1);
+	m_tileHeight = new QSpinBox();
+	m_tileHeight->setMinimum(4);
+	m_tileHeight->setMaximum(512);
+	m_tileHeight->setValue(16);
+	m_tileHeight->setSingleStep(1);
 	tileSizeLayout->addWidget(m_tileHeight);
 	tileSizeLayout->addWidget(new QLabel(" x "));
 	m_tileDepth = new QComboBox();
@@ -88,8 +82,8 @@ void AddMapDialog::OKButton()
 	string name = m_name->text().toStdString();
 	size_t width = (size_t)m_width->value();
 	size_t height = (size_t)m_height->value();
-	size_t tileWidth = (size_t)(1 << (3 + m_tileWidth->currentIndex()));
-	size_t tileHeight = (size_t)(1 << (3 + m_tileHeight->currentIndex()));
+	size_t tileWidth = (size_t)m_tileWidth->value();
+	size_t tileHeight = (size_t)m_tileHeight->value();
 	size_t tileDepth = 4;
 	if (m_tileDepth->currentIndex() == 1)
 		tileDepth = 8;
@@ -109,12 +103,12 @@ void AddMapDialog::OKButton()
 		QMessageBox::critical(this, "Error", "Map height is invalid.");
 		return;
 	}
-	if ((tileWidth < 8) || (tileWidth > 512) || ((tileWidth & (tileWidth - 1)) != 0))
+	if ((tileWidth < 4) || (tileWidth > 512))
 	{
 		QMessageBox::critical(this, "Error", "Tile width is invalid.");
 		return;
 	}
-	if ((tileHeight < 8) || (tileHeight > 512) || ((tileHeight & (tileHeight - 1)) != 0))
+	if ((tileHeight < 4) || (tileHeight > 512))
 	{
 		QMessageBox::critical(this, "Error", "Tile height is invalid.");
 		return;

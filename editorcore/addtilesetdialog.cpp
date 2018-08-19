@@ -38,24 +38,18 @@ AddTileSetDialog::AddTileSetDialog(QWidget* parent, shared_ptr<Project> project)
 
 	layout->addWidget(new QLabel("Tile Format:"));
 	QHBoxLayout* tileSizeLayout = new QHBoxLayout();
-	m_width = new QComboBox();
-	QStringList sizes;
-	sizes.append("8");
-	sizes.append("16");
-	sizes.append("32");
-	sizes.append("64");
-	sizes.append("128");
-	sizes.append("256");
-	sizes.append("512");
-	m_width->setEditable(false);
-	m_width->addItems(sizes);
-	m_width->setCurrentIndex(1);
+	m_width = new QSpinBox();
+	m_width->setMinimum(4);
+	m_width->setMaximum(512);
+	m_width->setValue(16);
+	m_width->setSingleStep(1);
 	tileSizeLayout->addWidget(m_width);
 	tileSizeLayout->addWidget(new QLabel(" x "));
-	m_height = new QComboBox();
-	m_height->setEditable(false);
-	m_height->addItems(sizes);
-	m_height->setCurrentIndex(1);
+	m_height = new QSpinBox();
+	m_height->setMinimum(4);
+	m_height->setMaximum(512);
+	m_height->setValue(16);
+	m_height->setSingleStep(1);
 	tileSizeLayout->addWidget(m_height);
 	tileSizeLayout->addWidget(new QLabel(" x "));
 	m_depth = new QComboBox();
@@ -96,8 +90,8 @@ void AddTileSetDialog::OKButton()
 {
 	string name = m_name->text().toStdString();
 	size_t count = (size_t)m_count->value();
-	size_t width = (size_t)(1 << (3 + m_width->currentIndex()));
-	size_t height = (size_t)(1 << (3 + m_height->currentIndex()));
+	size_t width = (size_t)m_width->value();
+	size_t height = (size_t)m_height->value();
 	size_t depth = 4;
 	if (m_depth->currentIndex() == 1)
 		depth = 8;
@@ -112,12 +106,12 @@ void AddTileSetDialog::OKButton()
 		QMessageBox::critical(this, "Error", "Tile set count must be between 1 and 1024.");
 		return;
 	}
-	if ((width < 8) || (width > 512) || ((width & (width - 1)) != 0))
+	if ((width < 4) || (width > 512))
 	{
 		QMessageBox::critical(this, "Error", "Tile width is invalid.");
 		return;
 	}
-	if ((height < 8) || (height > 512) || ((height & (height - 1)) != 0))
+	if ((height < 4) || (height > 512))
 	{
 		QMessageBox::critical(this, "Error", "Tile height is invalid.");
 		return;

@@ -11,7 +11,7 @@ class Tile
 {
 	uint16_t m_width, m_height, m_depth, m_frames;
 	uint8_t* m_data;
-	size_t m_size, m_frameSize;
+	size_t m_size, m_frameSize, m_pitch;
 	std::shared_ptr<Palette> m_palette;
 	uint8_t m_paletteOffset;
 
@@ -23,6 +23,7 @@ public:
 	uint16_t GetWidth() const { return m_width; }
 	uint16_t GetHeight() const { return m_height; }
 	uint16_t GetDepth() const { return m_depth; }
+	size_t GetPitch() const { return m_pitch; }
 	uint16_t GetFrameCount() const { return m_frames; }
 	uint8_t* GetData() { return m_data; }
 	const uint8_t* GetData() const { return m_data; }

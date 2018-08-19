@@ -1194,12 +1194,12 @@ bool MapEditorWidget::Copy()
 			uint8_t colorIndex;
 			if (tileObj->GetDepth() == 4)
 			{
-				size_t offset = (pixelY * tileObj->GetWidth() / 2) + (pixelX / 2);
+				size_t offset = (pixelY * tileObj->GetPitch()) + (pixelX / 2);
 				colorIndex = (tileObj->GetData()[offset] >> ((x & 1) << 2)) & 0xf;
 			}
 			else
 			{
-				size_t offset = (pixelY * tileObj->GetWidth()) + pixelX;
+				size_t offset = (pixelY * tileObj->GetPitch()) + pixelX;
 				colorIndex = tileObj->GetData()[offset];
 			}
 

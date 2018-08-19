@@ -16,8 +16,8 @@ class AddTileSetDialog: public QDialog
 	QComboBox* m_type;
 	QLabel* m_countLabel;
 	QSpinBox* m_count;
-	QComboBox* m_width;
-	QComboBox* m_height;
+	QSpinBox* m_width;
+	QSpinBox* m_height;
 	QComboBox* m_depth;
 
 	std::shared_ptr<Project> m_project;

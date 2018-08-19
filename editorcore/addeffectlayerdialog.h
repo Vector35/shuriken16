@@ -14,8 +14,8 @@ class AddEffectLayerDialog: public QDialog
 	QLineEdit* m_name;
 	QSpinBox* m_width;
 	QSpinBox* m_height;
-	QComboBox* m_tileWidth;
-	QComboBox* m_tileHeight;
+	QSpinBox* m_tileWidth;
+	QSpinBox* m_tileHeight;
 	QComboBox* m_tileDepth;
 
 	std::shared_ptr<Project> m_project;
