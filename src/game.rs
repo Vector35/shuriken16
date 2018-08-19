@@ -12,14 +12,16 @@ use self::sdl2::rect::Rect;
 use self::sdl2::render::{Canvas, Texture};
 use self::sdl2::video::Window;
 use self::byteorder::{ByteOrder, LittleEndian};
-use std::time;
 use std::process;
+use std::cell::RefCell;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::Map;
+use ui::UILayer;
 
 pub struct GameState {
 	pub map: Map,
+	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
@@ -35,10 +37,18 @@ pub struct RenderState {
 	dest_size: RenderSize,
 	render_buf: Vec<Vec<u16>>,
 	texture: Texture,
+}
 
-	start_time: time::Instant,
-	last_elapsed_secs: u64,
-	last_frames: usize
+pub trait Game {
+	fn init(&mut self, game_state: &mut GameState);
+	fn title(&self) -> String;
+	fn target_resolution(&self) -> ResolutionTarget;
+}
+
+impl GameState {
+	pub fn add_ui_layer(&mut self, layer: Box<UILayer>) {
+		self.ui_layers.push(RefCell::new(layer));
+	}
 }
 
 fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderState) {
@@ -70,14 +80,11 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		render_buf.push(line);
 	}
 
-	let start_time = time::Instant::now();
-	let last_elapsed_secs = 0;
-	let last_frames = 0;
-
 	let events = sdl.event_pump().unwrap();
 
 	let game = GameState {
 		map: map.clone(),
+		ui_layers: Vec::new(),
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		frame: 0,
@@ -88,7 +95,6 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		resolution_target: target,
 		dest_size,
 		render_buf, texture,
-		start_time, last_elapsed_secs, last_frames
 	};
 	(game, render_state)
 }
@@ -153,16 +159,6 @@ fn next_frame(game: &mut GameState, render_state: &mut RenderState) {
 	render_state.canvas.present();
 
 	game.frame += 1;
-
-	// Track framerate
-	let elapsed_time = render_state.start_time.elapsed();
-	let elapsed_secs = elapsed_time.as_secs();
-	if elapsed_secs != render_state.last_elapsed_secs {
-		render_state.last_elapsed_secs = elapsed_secs;
-		let framerate = game.frame - render_state.last_frames;
-		render_state.last_frames = game.frame;
-		println!("FPS: {}", framerate);
-	}
 }
 
 // Emscripten is event loop based, so state must be stored as a global variable or memory
@@ -172,26 +168,45 @@ static mut GAME: Option<GameState> = None;
 #[cfg(target_os = "emscripten")]
 static mut RENDER_STATE: Option<RenderState> = None;
 
-pub fn run(title: &str, target: ResolutionTarget, map: &Map) {
-	#[cfg(target_os = "emscripten")]
-	let (game, render_state) = init(title, target, map);
-	#[cfg(not(target_os = "emscripten"))]
-	let (mut game, mut render_state) = init(title, target, map);
+pub fn run(mut game: Box<Game>, map: &Map) {
+	let title = game.title();
+	let target = game.target_resolution();
 
+	// Initialize SDL and game state
+	#[cfg(target_os = "emscripten")]
+	let (game_state, render_state) = init(&title, target, map);
+	#[cfg(not(target_os = "emscripten"))]
+	let (mut game_state, mut render_state) = init(&title, target, map);
+
+	// For Emscripten target, store state in a global variable to avoid use of freed memory
 	#[cfg(target_os = "emscripten")]
 	unsafe {
-		GAME = Some(game);
+		GAME = Some(game_state);
 		RENDER_STATE = Some(render_state);
 	}
 
+	// Let game initialize
+	#[cfg(target_os = "emscripten")]
+	unsafe {
+		match &mut GAME {
+			Some(game_state) => {
+				game.init(game_state);
+			},
+			None => panic!("Invalid game state")
+		};
+	}
+	#[cfg(not(target_os = "emscripten"))]
+	game.init(&mut game_state);
+
+	// Start main loop
 	#[cfg(target_os = "emscripten")]
 	emscripten::set_main_loop_callback(|| {
 		unsafe {
 			match &mut GAME {
-				Some(game) => {
+				Some(game_state) => {
 					match &mut RENDER_STATE {
 						Some(render_state) => {
-							next_frame(game, render_state);
+							next_frame(game_state, render_state);
 						},
 						None => panic!("Invalid render state")
 					};
@@ -202,5 +217,5 @@ pub fn run(title: &str, target: ResolutionTarget, map: &Map) {
 	});
 
 	#[cfg(not(target_os = "emscripten"))]
-	loop { next_frame(&mut game, &mut render_state); }
+	loop { next_frame(&mut game_state, &mut render_state); }
 }

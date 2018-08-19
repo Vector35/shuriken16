@@ -1,10 +1,13 @@
 extern crate sdl2;
 extern crate byteorder;
 
+use std::time;
+use std::rc::Rc;
 use self::byteorder::{ByteOrder, LittleEndian};
 use game::GameState;
 use map::{MapLayer, BlendMode};
-use tile::PaletteWithOffset;
+use tile::{TileSet, PaletteWithOffset};
+use ui::{TextLayerRenderer, TextLayer, TextLayerContents, UILayer};
 
 #[derive(Debug)]
 pub enum ResolutionTargetMode {
@@ -25,6 +28,13 @@ pub struct ResolutionTarget {
 pub struct RenderSize {
 	pub width: usize,
 	pub height: usize
+}
+
+pub struct FrameRateTextRenderer {
+	start_time: time::Instant,
+	last_elapsed_secs: u64,
+	last_frames: usize,
+	frame_rate: usize
 }
 
 impl ResolutionTarget {
@@ -107,6 +117,40 @@ impl ResolutionTarget {
 				self.compute_render_size_for_height(window_width, window_height, target_height)
 			}
 		}
+	}
+}
+
+impl FrameRateTextRenderer {
+	pub fn new() -> FrameRateTextRenderer {
+		FrameRateTextRenderer {
+			start_time: time::Instant::now(),
+			last_elapsed_secs: 0,
+			last_frames: 0,
+			frame_rate: 0
+		}
+	}
+
+	pub fn new_ui_layer(font_tile_set: Rc<TileSet>, font_base: u8) -> Box<UILayer> {
+		let mut layer = TextLayer::new(font_tile_set, font_base);
+		layer.renderer = Some(Box::new(FrameRateTextRenderer::new()));
+		Box::new(layer)
+	}
+}
+
+impl TextLayerRenderer for FrameRateTextRenderer {
+	fn update(&mut self, layer: &mut TextLayerContents, game_state: &GameState) {
+		let elapsed_time = self.start_time.elapsed();
+		let elapsed_secs = elapsed_time.as_secs();
+		if elapsed_secs != self.last_elapsed_secs {
+			self.last_elapsed_secs = elapsed_secs;
+			self.frame_rate = game_state.frame - self.last_frames;
+			self.last_frames = game_state.frame;
+		}
+
+		layer.clear();
+		let text = format!("{} FPS", self.frame_rate);
+		let x = (layer.width() as i32 - text.len() as i32) - 1;
+		layer.write(x, 1, &text);
 	}
 }
 
@@ -263,7 +307,8 @@ fn render_tile_16bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, widt
 	}
 }
 
-fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState, layer: &MapLayer,
+fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+	game: &GameState, layer: &MapLayer, scroll_x: isize, scroll_y: isize,
 	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16)),
 	blend: &Fn(&mut u16, u16)) {
 	// Compute scrolling for this layer
@@ -274,8 +319,8 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	let frame = game.frame as isize;
 	let bias_x = 0x40000000 - (0x40000000 % (layer.tile_width * layer.width)) as isize;
 	let bias_y = 0x40000000 - (0x40000000 % (layer.tile_height * layer.height)) as isize;
-	let scroll_x = (((game.scroll_x * parallax_x + auto_scroll_x * frame) / 0x100) + bias_x) as usize;
-	let scroll_y = (((game.scroll_y * parallax_y + auto_scroll_y * frame) / 0x100) + bias_y) as usize;
+	let scroll_x = (((scroll_x * parallax_x + auto_scroll_x * frame) / 0x100) + bias_x) as usize;
+	let scroll_y = (((scroll_y * parallax_y + auto_scroll_y * frame) / 0x100) + bias_y) as usize;
 
 	// Compute bounds of rendering
 	let left_tile = scroll_x / layer.tile_width;
@@ -288,7 +333,7 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	let bottom_pixel = (scroll_y + render_size.height - 1) % layer.tile_height;
 
 	// Compute tile data layout
-	let tile_pitch = layer.tile_width * layer.tile_depth / 8;
+	let tile_pitch = ((layer.tile_width * layer.tile_depth) + 7) / 8;
 
 	// Render tiles
 	let mut target_y = 0;
@@ -365,37 +410,52 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	}
 }
 
-fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState, layer: &MapLayer,
+fn render_layer_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+	game: &GameState, scroll_x: isize, scroll_y: isize, layer: &MapLayer,
 	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
 	match layer.alpha {
 		0 => {
 			match layer.blend_mode {
 				BlendMode::Normal =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer, &normal_blend),
+					render_layer_with_blending(render_size, render_buf, game, layer,
+						scroll_x, scroll_y, tile_renderer, &normal_blend),
 				BlendMode::Add =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer, &add_blend),
+					render_layer_with_blending(render_size, render_buf, game, layer,
+						scroll_x, scroll_y, tile_renderer, &add_blend),
 				BlendMode::Subtract =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer, &subtract_blend),
+					render_layer_with_blending(render_size, render_buf, game, layer,
+						scroll_x, scroll_y, tile_renderer, &subtract_blend),
 				BlendMode::Multiply =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer, &multiply_blend)
+					render_layer_with_blending(render_size, render_buf, game, layer,
+						scroll_x, scroll_y, tile_renderer, &multiply_blend)
 			};
 		},
 		alpha => {
 			match layer.blend_mode {
 				BlendMode::Normal =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer,
-						&|pixel, color| alpha_blend(pixel, color, alpha, &normal_blend)),
+					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &normal_blend)),
 				BlendMode::Add =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer,
-						&|pixel, color| alpha_blend(pixel, color, alpha, &add_blend)),
+					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &add_blend)),
 				BlendMode::Subtract =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer,
-						&|pixel, color| alpha_blend(pixel, color, alpha, &subtract_blend)),
+					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &subtract_blend)),
 				BlendMode::Multiply =>
-					render_layer_with_blending(render_size, render_buf, game, layer, tile_renderer,
-						&|pixel, color| alpha_blend(pixel, color, alpha, &multiply_blend)),
+					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &multiply_blend)),
 			};
 		}
+	};
+}
+
+fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState,
+	scroll_x: isize, scroll_y: isize, layer: &MapLayer) {
+	match layer.tile_depth {
+		4 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_4bit),
+		8 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_8bit),
+		16 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_16bit),
+		_ => panic!("Invalid tile bit depth {}", layer.tile_depth)
 	};
 }
 
@@ -411,11 +471,19 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, ga
 
 	// Render each map layer
 	for layer in &game.map.layers {
-		match layer.tile_depth {
-			4 => render_layer(render_size, render_buf, game, &layer, &render_tile_4bit),
-			8 => render_layer(render_size, render_buf, game, &layer, &render_tile_8bit),
-			16 => render_layer(render_size, render_buf, game, &layer, &render_tile_16bit),
-			_ => panic!("Invalid tile bit depth {}", layer.tile_depth)
-		};
+		render_layer(render_size, render_buf, game, game.scroll_x, game.scroll_y, &layer);
+	}
+
+	for layer in &game.ui_layers {
+		layer.borrow_mut().update(&game);
+
+		// Render UI layer centered in render area
+		let layer_ref = layer.borrow();
+		let map_layer = layer_ref.get_map_layer();
+		let layer_width = map_layer.width * map_layer.tile_width;
+		let layer_height = map_layer.height * map_layer.tile_height;
+		let scroll_x = (render_size.width as isize - layer_width as isize) / 2;
+		let scroll_y = (render_size.height as isize - layer_height as isize) / 2;
+		render_layer(render_size, render_buf, game, scroll_x, scroll_y, map_layer);
 	}
 }

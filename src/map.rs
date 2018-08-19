@@ -206,6 +206,29 @@ impl MapLayer {
 	pub fn set_tile(&mut self, x: usize, y: usize, tile: Option<TileRef>) {
 		self.tiles[(y * self.width) + x] = tile;
 	}
+
+	pub fn resize(&mut self, width: usize, height: usize) {
+		let mut new_tiles = Vec::new();
+		new_tiles.resize(width * height, None);
+
+		let mut copy_width = width;
+		let mut copy_height = height;
+		if copy_width > self.width {
+			copy_width = self.width;
+		}
+		if copy_height > self.height {
+			copy_height = self.height;
+		}
+		for y in 0..copy_height {
+			for x in 0..copy_width {
+				new_tiles[(y * width) + x] = self.tiles[(y * self.width) + x].clone();
+			}
+		}
+
+		self.width = width;
+		self.height = height;
+		self.tiles = new_tiles;
+	}
 }
 
 impl Map {
