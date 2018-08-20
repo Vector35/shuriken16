@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use palette::Palette;
 use tile::TileSet;
+use sprite::Sprite;
 use map::MapLayer;
 use map::Map;
 
@@ -18,7 +19,8 @@ struct Manifest {
 	palettes: Vec<String>,
 	tilesets: Vec<String>,
 	effect_layers: Vec<String>,
-	maps: Vec<String>
+	maps: Vec<String>,
+	sprites: Vec<String>
 }
 
 #[derive(Clone)]
@@ -30,7 +32,9 @@ pub struct AssetNamespace {
 	effect_layers_by_id: HashMap<String, Rc<MapLayer>>,
 	effect_layers_by_name: HashMap<String, Rc<MapLayer>>,
 	maps_by_id: HashMap<String, Rc<Map>>,
-	maps_by_name: HashMap<String, Rc<Map>>
+	maps_by_name: HashMap<String, Rc<Map>>,
+	sprites_by_id: HashMap<String, Rc<Sprite>>,
+	sprites_by_name: HashMap<String, Rc<Sprite>>
 }
 
 impl AssetNamespace {
@@ -43,7 +47,9 @@ impl AssetNamespace {
 			effect_layers_by_id: HashMap::new(),
 			effect_layers_by_name: HashMap::new(),
 			maps_by_id: HashMap::new(),
-			maps_by_name: HashMap::new()
+			maps_by_name: HashMap::new(),
+			sprites_by_id: HashMap::new(),
+			sprites_by_name: HashMap::new()
 		}
 	}
 
@@ -77,6 +83,13 @@ impl AssetNamespace {
 			registered_assets.push(map.id.clone());
 			self.maps_by_id.insert(map.id.clone(), Rc::clone(&map));
 			self.maps_by_name.insert(map.name.clone(), Rc::clone(&map));
+		}
+
+		for name in manifest.sprites {
+			let sprite = Sprite::import(&self, &load_asset_string(path, &name)?)?;
+			registered_assets.push(sprite.id.clone());
+			self.sprites_by_id.insert(sprite.id.clone(), Rc::clone(&sprite));
+			self.sprites_by_name.insert(sprite.name.clone(), Rc::clone(&sprite));
 		}
 
 		return Ok(registered_assets);
@@ -141,6 +154,22 @@ impl AssetNamespace {
 	pub fn get_map_by_name(&self, name: &str) -> Option<Rc<Map>> {
 		if let Some(map) = self.maps_by_name.get(name) {
 			Some(Rc::clone(map))
+		} else {
+			None
+		}
+	}
+
+	pub fn get_sprite_by_id(&self, id: &str) -> Option<Rc<Sprite>> {
+		if let Some(sprite) = self.sprites_by_id.get(id) {
+			Some(Rc::clone(sprite))
+		} else {
+			None
+		}
+	}
+
+	pub fn get_sprite_by_name(&self, name: &str) -> Option<Rc<Sprite>> {
+		if let Some(sprite) = self.sprites_by_name.get(name) {
+			Some(Rc::clone(sprite))
 		} else {
 			None
 		}

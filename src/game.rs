@@ -18,10 +18,12 @@ use render;
 use render::{RenderSize, ResolutionTarget};
 use map::Map;
 use ui::UILayer;
+use actor::{Actor, ActorRef};
 
 pub struct GameState {
 	pub map: Map,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
+	pub actors: Vec<ActorRef>,
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
@@ -43,11 +45,22 @@ pub trait Game {
 	fn init(&mut self, game_state: &mut GameState);
 	fn title(&self) -> String;
 	fn target_resolution(&self) -> ResolutionTarget;
+
+	fn key_down(&mut self, _key: Keycode) {}
+	fn key_up(&mut self, _key: Keycode) {}
+
+	fn tick(&mut self) {}
 }
 
 impl GameState {
 	pub fn add_ui_layer(&mut self, layer: Box<UILayer>) {
 		self.ui_layers.push(RefCell::new(layer));
+	}
+
+	pub fn add_actor(&mut self, actor: Box<Actor>) -> ActorRef {
+		let actor_ref = ActorRef::new(actor);
+		self.actors.push(actor_ref.clone());
+		actor_ref
 	}
 }
 
@@ -85,6 +98,7 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 	let game = GameState {
 		map: map.clone(),
 		ui_layers: Vec::new(),
+		actors: Vec::new(),
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		frame: 0,
@@ -99,7 +113,7 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 	(game, render_state)
 }
 
-fn next_frame(game: &mut GameState, render_state: &mut RenderState) {
+fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &mut RenderState) {
 	#[cfg(target_os = "emscripten")] {
 		let (cur_width, cur_height) = emscripten::get_canvas_size();
 		if (cur_width != render_state.screen_width) || (cur_height != render_state.screen_height) {
@@ -113,22 +127,27 @@ fn next_frame(game: &mut GameState, render_state: &mut RenderState) {
 			Event::KeyDown {keycode: Some(Keycode::Escape), ..} =>
 				process::exit(0),
 
+			Event::KeyDown {keycode: Some(keycode), ..} =>
+				game.key_down(keycode),
+			Event::KeyUp {keycode: Some(keycode), ..} =>
+				game.key_up(keycode),
+
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
 				render_state.screen_width = width as usize;
 				render_state.screen_height = height as usize;
 				let (render_size, dest_size) = render_state.resolution_target.compute_render_sizes(
 					render_state.screen_width, render_state.screen_height);
 
-				game.render_size = render_size;
+				game_state.render_size = render_size;
 				render_state.dest_size = dest_size;
 
 				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB555,
-					game.render_size.width as u32, game.render_size.height as u32).unwrap();
+					game_state.render_size.width as u32, game_state.render_size.height as u32).unwrap();
 
 				render_state.render_buf = Vec::new();
-				for _ in 0 .. game.render_size.height {
+				for _ in 0 .. game_state.render_size.height {
 					let mut line = Vec::new();
-					line.resize(game.render_size.width, 0);
+					line.resize(game_state.render_size.width, 0);
 					render_state.render_buf.push(line);
 				}
 			},
@@ -137,14 +156,31 @@ fn next_frame(game: &mut GameState, render_state: &mut RenderState) {
 		}
 	}
 
+	game.tick();
+
+	// Advance sprite animations
+	for actor in &game_state.actors {
+		let mut actor_ref = actor.borrow_mut();
+		let actor_info = actor_ref.actor_info_mut();
+		for sprite in &mut actor_info.sprites {
+			sprite.animation_frame += 1;
+		}
+	}
+
+	// Tick actors
+	for actor in &game_state.actors {
+		let mut actor_ref = actor.borrow_mut();
+		actor_ref.tick();
+	}
+
 	// Render game at internal resolution
-	render::render_frame(&game.render_size, &mut render_state.render_buf, &game);
+	render::render_frame(&game_state.render_size, &mut render_state.render_buf, &game_state);
 
 	// Copy rendered frame into SDL texture
 	let render_buf = &render_state.render_buf;
 	render_state.texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
-		for y in 0..game.render_size.height {
-			let dest_line = &mut buffer[y * pitch .. (y * pitch) + (game.render_size.width * 2)];
+		for y in 0..game_state.render_size.height {
+			let dest_line = &mut buffer[y * pitch .. (y * pitch) + (game_state.render_size.width * 2)];
 			let src_line = &render_buf[y];
 			LittleEndian::write_u16_into(src_line, dest_line);
 		}
@@ -158,16 +194,19 @@ fn next_frame(game: &mut GameState, render_state: &mut RenderState) {
 		render_state.dest_size.width as u32, render_state.dest_size.height as u32)).unwrap();
 	render_state.canvas.present();
 
-	game.frame += 1;
+	game_state.frame += 1;
 }
 
 // Emscripten is event loop based, so state must be stored as a global variable or memory
 // corruption will occur
 #[cfg(target_os = "emscripten")]
-static mut GAME: Option<GameState> = None;
+static mut GAME: Option<Box<Game>> = None;
+#[cfg(target_os = "emscripten")]
+static mut GAME_STATE: Option<GameState> = None;
 #[cfg(target_os = "emscripten")]
 static mut RENDER_STATE: Option<RenderState> = None;
 
+#[allow(unused_mut)] // Emscripten-only warning
 pub fn run(mut game: Box<Game>, map: &Map) {
 	let title = game.title();
 	let target = game.target_resolution();
@@ -181,7 +220,8 @@ pub fn run(mut game: Box<Game>, map: &Map) {
 	// For Emscripten target, store state in a global variable to avoid use of freed memory
 	#[cfg(target_os = "emscripten")]
 	unsafe {
-		GAME = Some(game_state);
+		GAME = Some(game);
+		GAME_STATE = Some(game_state);
 		RENDER_STATE = Some(render_state);
 	}
 
@@ -189,11 +229,16 @@ pub fn run(mut game: Box<Game>, map: &Map) {
 	#[cfg(target_os = "emscripten")]
 	unsafe {
 		match &mut GAME {
-			Some(game_state) => {
-				game.init(game_state);
+			Some(game) => {
+				match &mut GAME_STATE {
+					Some(game_state) => {
+						game.init(game_state);
+					},
+					None => panic!("Invalid game state")
+				}
 			},
-			None => panic!("Invalid game state")
-		};
+			None => panic!("Invalid game object")
+		}
 	}
 	#[cfg(not(target_os = "emscripten"))]
 	game.init(&mut game_state);
@@ -203,19 +248,24 @@ pub fn run(mut game: Box<Game>, map: &Map) {
 	emscripten::set_main_loop_callback(|| {
 		unsafe {
 			match &mut GAME {
-				Some(game_state) => {
-					match &mut RENDER_STATE {
-						Some(render_state) => {
-							next_frame(game_state, render_state);
-						},
-						None => panic!("Invalid render state")
+				Some(game) => {
+					match &mut GAME_STATE {
+						Some(game_state) => {
+							match &mut RENDER_STATE {
+								Some(render_state) => {
+									next_frame(game, game_state, render_state);
+								},
+								None => panic!("Invalid render state")
+							};
+						}
+						None => panic!("Invalid game state")
 					};
-				}
-				None => panic!("Invalid game state")
+				},
+				None => panic!("Invalid game object")
 			};
 		}
 	});
 
 	#[cfg(not(target_os = "emscripten"))]
-	loop { next_frame(&mut game_state, &mut render_state); }
+	loop { next_frame(&mut game, &mut game_state, &mut render_state); }
 }

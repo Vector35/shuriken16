@@ -8,6 +8,7 @@ use game::GameState;
 use map::{MapLayer, BlendMode};
 use tile::{TileSet, PaletteWithOffset};
 use ui::{TextLayerRenderer, TextLayer, TextLayerContents, UILayer};
+use sprite::SpriteAnimation;
 
 #[derive(Debug)]
 pub enum ResolutionTargetMode {
@@ -459,6 +460,66 @@ fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: 
 	};
 }
 
+fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+	x: isize, y: isize, animation: &SpriteAnimation, frame: usize,
+	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
+	if (x >= render_size.width as isize) || (y >= render_size.height as isize) ||
+		(x <= -(animation.width as isize)) || (y <= -(animation.height as isize)) {
+		return;
+	}
+
+	let mut x_offset = 0;
+	let mut y_offset = 0;
+	let x_start;
+	let y_start;
+	let mut width = animation.width;
+	let mut height = animation.height;
+
+	if x < 0 {
+		x_offset = (-x) as usize;
+		width -= x_offset;
+		x_start = 0;
+	} else {
+		x_start = x as usize;
+	}
+
+	if y < 0 {
+		y_offset = (-y) as usize;
+		height -= y_offset;
+		y_start = 0;
+	} else {
+		y_start = y as usize;
+	}
+
+	if (x as usize + width) > render_size.width {
+		width = render_size.width - x as usize;
+	}
+
+	if (y as usize + height) > render_size.height {
+		height = render_size.height - y as usize;
+	}
+
+	let sprite_data = animation.data_for_time(frame);
+	let pitch = ((animation.width * animation.depth) + 7) / 8;
+
+	for pixel_y in 0..height {
+		let row_data = &sprite_data[(y_offset + pixel_y) * pitch .. (y_offset + pixel_y + 1) * pitch];
+		let render_buf_row = &mut render_buf[y_start + pixel_y];
+		let render_buf_tile = &mut render_buf_row[x_start .. x_start + width];
+		tile_renderer(render_buf_tile, row_data, x_offset, width, &animation.palette, &normal_blend);
+	}
+}
+
+fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: isize, y: isize,
+	animation: &SpriteAnimation, frame: usize) {
+	match animation.depth {
+		4 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_4bit),
+		8 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_8bit),
+		16 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_16bit),
+		_ => panic!("Invalid sprite bit depth {}", animation.depth)
+	};
+}
+
 pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState) {
 	// Fill initial frame with map's background color
 	let background_color = game.map.background_color;
@@ -485,5 +546,14 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, ga
 		let scroll_x = (render_size.width as isize - layer_width as isize) / 2;
 		let scroll_y = (render_size.height as isize - layer_height as isize) / 2;
 		render_layer(render_size, render_buf, game, scroll_x, scroll_y, map_layer);
+	}
+
+	for actor in &game.actors {
+		let actor_ref = actor.borrow();
+		let actor_info = actor_ref.actor_info();
+		for sprite in &actor_info.sprites {
+			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset,
+				actor_info.y + sprite.y_offset, &sprite.animation, sprite.animation_frame);
+		}
 	}
 }
