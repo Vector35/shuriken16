@@ -10,6 +10,13 @@ pub struct SpriteWithOffset {
 	pub y_offset: isize
 }
 
+pub struct BoundingRect {
+	pub x: isize,
+	pub y: isize,
+	pub width: isize,
+	pub height: isize
+}
+
 pub struct ActorInfo {
 	pub x: isize,
 	pub y: isize,
@@ -17,6 +24,7 @@ pub struct ActorInfo {
 	pub subpixel_y: u8,
 	pub velocity_x: isize,
 	pub velocity_y: isize,
+	pub collision_bounds: Option<BoundingRect>,
 	pub sprites: Vec<SpriteWithOffset>
 }
 
@@ -71,6 +79,11 @@ pub trait Actor {
 		}
 	}
 
+	fn set_collision_bounds(&mut self, bounds: BoundingRect) {
+		let actor_info = self.actor_info_mut();
+		actor_info.collision_bounds = Some(bounds);
+	}
+
 	fn on_button_down(&mut self, _name: &str) {}
 	fn on_button_up(&mut self, _name: &str) {}
 }
@@ -83,6 +96,7 @@ impl ActorInfo {
 			subpixel_y: 0,
 			velocity_x: 0,
 			velocity_y: 0,
+			collision_bounds: None,
 			sprites: Vec::new()
 		}
 	}

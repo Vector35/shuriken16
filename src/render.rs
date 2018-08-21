@@ -549,8 +549,8 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, ga
 		let actor_ref = actor.borrow();
 		let actor_info = actor_ref.actor_info();
 		for sprite in &actor_info.sprites {
-			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset,
-				actor_info.y + sprite.y_offset, &sprite.animation, sprite.animation_frame);
+			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
+				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame);
 		}
 	}
 }

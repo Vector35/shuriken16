@@ -20,12 +20,14 @@ use render::{RenderSize, ResolutionTarget};
 use map::Map;
 use ui::UILayer;
 use actor::{Actor, ActorRef};
+use camera::Camera;
 
 pub struct GameState {
 	pub map: Map,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
 	pub actors: Vec<ActorRef>,
 	pub controlled_actor: Option<ActorRef>,
+	pub camera: Option<Camera>,
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
@@ -69,6 +71,10 @@ impl GameState {
 
 	pub fn set_controlled_actor(&mut self, actor: &ActorRef) {
 		self.controlled_actor = Some(actor.clone());
+	}
+
+	pub fn set_camera(&mut self, camera: Option<Camera>) {
+		self.camera = camera;
 	}
 
 	fn key_down(&self, key: Keycode) {
@@ -124,6 +130,7 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		ui_layers: Vec::new(),
 		actors: Vec::new(),
 		controlled_actor: None,
+		camera: None,
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		frame: 0,
@@ -197,6 +204,11 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	for actor in &game_state.actors {
 		let mut actor_ref = actor.borrow_mut();
 		actor_ref.tick();
+	}
+
+	// Update camera state
+	if let Some(camera) = &game_state.camera {
+		camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
 	}
 
 	// Render game at internal resolution

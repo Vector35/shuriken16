@@ -10,6 +10,7 @@ pub mod asset;
 pub mod game;
 pub mod ui;
 pub mod actor;
+pub mod camera;
 
 #[cfg(target_os = "emscripten")]
 pub mod emscripten;

@@ -5,6 +5,7 @@ use std::rc::Rc;
 use tile::TileSet;
 use asset;
 use asset::AssetNamespace;
+use actor::BoundingRect;
 
 #[derive(Serialize, Deserialize)]
 struct RawMapLayer {
@@ -287,5 +288,19 @@ impl Map {
 		}
 
 		Ok(Rc::new(map))
+	}
+
+	pub fn bounds(&self) -> Option<BoundingRect> {
+		for layer in &self.layers {
+			if !layer.effect {
+				return Some(BoundingRect {
+					x: 0,
+					y: 0,
+					width: (layer.width * layer.tile_width) as isize,
+					height: (layer.height * layer.tile_height) as isize
+				});
+			}
+		}
+		None
 	}
 }
