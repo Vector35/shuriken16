@@ -265,10 +265,9 @@ impl Map {
 		for raw_layer in raw_map.layers {
 			let layer = match raw_layer.normal {
 				Some(normal_raw_layer) => {
-					match raw_layer.effect {
-						Some(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "Layer has multiple definitions")),
-						_ => ()
-					};
+					if let Some(_) = raw_layer.effect {
+						return Err(io::Error::new(io::ErrorKind::InvalidData, "Layer has multiple definitions"));
+					}
 					MapLayer::import_from_raw_layer(assets, normal_raw_layer, false)?
 				}
 				None => {

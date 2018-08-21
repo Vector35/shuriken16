@@ -361,38 +361,35 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 		for tile_x in left_tile ..= right_tile {
 			// Look up tile in map layer
 			let tile = &map_row[tile_x % layer.width];
-			match tile {
-				Some(tile_ref) => {
-					// Grab tile data for the current animation frame, and get palette for tile
-					let tile_data = tile_ref.tile_set.data_for_time(tile_ref.tile_index, game.frame);
-					let palette = &tile_ref.tile_set.tiles[tile_ref.tile_index].palette;
+			if let Some(tile_ref) = tile {
+				// Grab tile data for the current animation frame, and get palette for tile
+				let tile_data = tile_ref.tile_set.data_for_time(tile_ref.tile_index, game.frame);
+				let palette = &tile_ref.tile_set.tiles[tile_ref.tile_index].palette;
 
-					// Compute rendering extents for current tile
-					let cur_left_pixel;
-					let cur_right_pixel;
-					if tile_x == left_tile {
-						cur_left_pixel = left_pixel;
-					} else {
-						cur_left_pixel = 0;
-					}
-					if tile_x == right_tile {
-						cur_right_pixel = right_pixel;
-					} else {
-						cur_right_pixel = layer.tile_width - 1;
-					}
+				// Compute rendering extents for current tile
+				let cur_left_pixel;
+				let cur_right_pixel;
+				if tile_x == left_tile {
+					cur_left_pixel = left_pixel;
+				} else {
+					cur_left_pixel = 0;
+				}
+				if tile_x == right_tile {
+					cur_right_pixel = right_pixel;
+				} else {
+					cur_right_pixel = layer.tile_width - 1;
+				}
 
-					let tile_render_width = (cur_right_pixel - cur_left_pixel) + 1;
+				let tile_render_width = (cur_right_pixel - cur_left_pixel) + 1;
 
-					// Render tile
-					for pixel_y in cur_top_pixel ..= cur_bottom_pixel {
-						let tile_data_row = &tile_data[pixel_y * tile_pitch .. (pixel_y + 1) * tile_pitch];
-						let render_buf_row = &mut render_buf[target_y + (pixel_y - cur_top_pixel)];
-						let render_buf_tile = &mut render_buf_row[target_x .. target_x + tile_render_width];
-						tile_renderer(render_buf_tile, tile_data_row, cur_left_pixel, tile_render_width, palette, blend);
-					}
-				},
-				None => ()
-			};
+				// Render tile
+				for pixel_y in cur_top_pixel ..= cur_bottom_pixel {
+					let tile_data_row = &tile_data[pixel_y * tile_pitch .. (pixel_y + 1) * tile_pitch];
+					let render_buf_row = &mut render_buf[target_y + (pixel_y - cur_top_pixel)];
+					let render_buf_tile = &mut render_buf_row[target_x .. target_x + tile_render_width];
+					tile_renderer(render_buf_tile, tile_data_row, cur_left_pixel, tile_render_width, palette, blend);
+				}
+			}
 
 			// Update render target x coordinate
 			if tile_x == left_tile {
@@ -491,12 +488,12 @@ fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Ve
 		y_start = y as usize;
 	}
 
-	if (x as usize + width) > render_size.width {
-		width = render_size.width - x as usize;
+	if (x_start + width) > render_size.width {
+		width = render_size.width - x_start;
 	}
 
-	if (y as usize + height) > render_size.height {
-		height = render_size.height - y as usize;
+	if (y_start + height) > render_size.height {
+		height = render_size.height - y_start;
 	}
 
 	let sprite_data = animation.data_for_time(frame);

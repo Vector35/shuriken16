@@ -14,6 +14,7 @@ use self::sdl2::video::Window;
 use self::byteorder::{ByteOrder, LittleEndian};
 use std::process;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::Map;
@@ -24,10 +25,12 @@ pub struct GameState {
 	pub map: Map,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
 	pub actors: Vec<ActorRef>,
+	pub controlled_actor: Option<ActorRef>,
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
-	pub frame: usize
+	pub frame: usize,
+	pub key_bindings: HashMap<Keycode, String>
 }
 
 pub struct RenderState {
@@ -46,9 +49,6 @@ pub trait Game {
 	fn title(&self) -> String;
 	fn target_resolution(&self) -> ResolutionTarget;
 
-	fn key_down(&mut self, _key: Keycode) {}
-	fn key_up(&mut self, _key: Keycode) {}
-
 	fn tick(&mut self) {}
 }
 
@@ -61,6 +61,30 @@ impl GameState {
 		let actor_ref = ActorRef::new(actor);
 		self.actors.push(actor_ref.clone());
 		actor_ref
+	}
+
+	pub fn bind_key(&mut self, key: Keycode, button: &str) {
+		self.key_bindings.insert(key, button.to_string());
+	}
+
+	pub fn set_controlled_actor(&mut self, actor: &ActorRef) {
+		self.controlled_actor = Some(actor.clone());
+	}
+
+	fn key_down(&self, key: Keycode) {
+		if let Some(action) = self.key_bindings.get(&key) {
+			if let Some(actor) = &self.controlled_actor {
+				actor.borrow_mut().on_button_down(action);
+			}
+		}
+	}
+
+	fn key_up(&self, key: Keycode) {
+		if let Some(action) = self.key_bindings.get(&key) {
+			if let Some(actor) = &self.controlled_actor {
+				actor.borrow_mut().on_button_up(action);
+			}
+		}
 	}
 }
 
@@ -99,9 +123,11 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		map: map.clone(),
 		ui_layers: Vec::new(),
 		actors: Vec::new(),
+		controlled_actor: None,
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		frame: 0,
+		key_bindings: HashMap::new()
 	};
 	let render_state = RenderState {
 		canvas, events,
@@ -128,9 +154,9 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				process::exit(0),
 
 			Event::KeyDown {keycode: Some(keycode), ..} =>
-				game.key_down(keycode),
+				game_state.key_down(keycode),
 			Event::KeyUp {keycode: Some(keycode), ..} =>
-				game.key_up(keycode),
+				game_state.key_up(keycode),
 
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
 				render_state.screen_width = width as usize;
@@ -228,16 +254,10 @@ pub fn run(mut game: Box<Game>, map: &Map) {
 	// Let game initialize
 	#[cfg(target_os = "emscripten")]
 	unsafe {
-		match &mut GAME {
-			Some(game) => {
-				match &mut GAME_STATE {
-					Some(game_state) => {
-						game.init(game_state);
-					},
-					None => panic!("Invalid game state")
-				}
-			},
-			None => panic!("Invalid game object")
+		if let Some(game) = &mut GAME {
+			if let Some(game_state) = &mut GAME_STATE {
+				game.init(game_state);
+			}
 		}
 	}
 	#[cfg(not(target_os = "emscripten"))]
@@ -247,22 +267,13 @@ pub fn run(mut game: Box<Game>, map: &Map) {
 	#[cfg(target_os = "emscripten")]
 	emscripten::set_main_loop_callback(|| {
 		unsafe {
-			match &mut GAME {
-				Some(game) => {
-					match &mut GAME_STATE {
-						Some(game_state) => {
-							match &mut RENDER_STATE {
-								Some(render_state) => {
-									next_frame(game, game_state, render_state);
-								},
-								None => panic!("Invalid render state")
-							};
-						}
-						None => panic!("Invalid game state")
-					};
-				},
-				None => panic!("Invalid game object")
-			};
+			if let Some(game) = &mut GAME {
+				if let Some(game_state) = &mut GAME_STATE {
+					if let Some(render_state) = &mut RENDER_STATE {
+						next_frame(game, game_state, render_state);
+					}
+				}
+			}
 		}
 	});
 

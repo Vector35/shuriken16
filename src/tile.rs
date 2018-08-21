@@ -122,26 +122,23 @@ impl TileSet {
 		};
 
 		// Process animation data
-		match raw_tile_set.anim {
-			Some(raw_animation) => {
-				// Check animation length for sanity
-				let mut total_length = 0;
-				for frame_length in &raw_animation {
-					total_length += frame_length;
-				}
+		if let Some(raw_animation) = raw_tile_set.anim {
+			// Check animation length for sanity
+			let mut total_length = 0;
+			for frame_length in &raw_animation {
+				total_length += frame_length;
+			}
 
-				if total_length == 0 {
-					return Err(io::Error::new(io::ErrorKind::InvalidData, "Animation with zero length"));
-				}
-				if total_length >= 0x10000 {
-					return Err(io::Error::new(io::ErrorKind::InvalidData, "Animation too long"));
-				}
+			if total_length == 0 {
+				return Err(io::Error::new(io::ErrorKind::InvalidData, "Animation with zero length"));
+			}
+			if total_length >= 0x10000 {
+				return Err(io::Error::new(io::ErrorKind::InvalidData, "Animation too long"));
+			}
 
-				let animation = Animation::new(raw_animation);
-				tile_set.frames = animation.frame_lengths.len();
-				tile_set.animation = Some(animation);
-			},
-			None => ()
+			let animation = Animation::new(raw_animation);
+			tile_set.frames = animation.frame_lengths.len();
+			tile_set.animation = Some(animation);
 		}
 
 		// Process tile data

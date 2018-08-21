@@ -104,12 +104,9 @@ impl UILayer for TextLayer {
 			self.contents.layer.resize(desired_width, desired_height);
 		}
 
-		match &mut self.renderer {
-			Some(renderer) => {
-				renderer.update(&mut self.contents, game_state);
-			},
-			None => ()
-		};
+		if let Some(renderer) = &mut self.renderer {
+			renderer.update(&mut self.contents, game_state);
+		}
 	}
 
 	fn get_map_layer(&self) -> &MapLayer {
