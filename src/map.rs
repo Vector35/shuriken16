@@ -2,6 +2,7 @@ extern crate serde_json;
 
 use std::io;
 use std::rc::Rc;
+use std::cmp::{min, max};
 use tile::TileSet;
 use asset;
 use asset::AssetNamespace;
@@ -264,6 +265,152 @@ impl MapLayer {
 
 		false
 	}
+
+	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize) -> Option<isize> {
+		let left_tile = min(rect.x, final_x) / self.tile_width as isize;
+		let right_tile = (max(rect.x, final_x) + rect.width - 1) / self.tile_width as isize;
+		let top_tile = rect.y / self.tile_height as isize;
+		let bottom_tile = (rect.y + rect.height - 1) / self.tile_height as isize;
+
+		let mut revised_x = final_x;
+		let mut collision = None;
+
+		if (top_tile < 0) || (bottom_tile >= self.height as isize) {
+			// Outside bounds is always colliding
+			return Some(rect.x);
+		}
+
+		if left_tile < 0 {
+			// Heads out of bounds, find exit point
+			if rect.x < 0 {
+				return Some(rect.x);
+			}
+			revised_x = 0;
+			collision = Some(0);
+		}
+
+		if right_tile >= self.width as isize {
+			// Heads out of bounds, find exit point
+			if (rect.x + rect.width) > (self.width * self.tile_width) as isize {
+				return Some(rect.x);
+			}
+			revised_x = (self.width * self.tile_width) as isize - rect.width;
+			collision = Some(revised_x);
+		}
+
+		for tile_y in top_tile ..= bottom_tile {
+			for tile_x in left_tile ..= right_tile {
+				if let Some(tile_ref) = self.get_tile(tile_x as usize, tile_y as usize) {
+					let tile = &tile_ref.tile_set.tiles[tile_ref.tile_index];
+					for tile_rect in &tile.collision {
+						let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+						let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+						let check_width = tile_rect.width;
+						let check_height = tile_rect.height;
+
+						if (check_y >= (rect.y + rect.height)) || (rect.y >= (check_y + check_height)) {
+							// Not colliding on y axis
+							continue;
+						}
+
+						if (check_x < (rect.x + rect.width)) && (rect.x < (check_x + check_width)) {
+							// Already colliding at start
+							return Some(rect.x);
+						}
+
+						if ((rect.x + rect.width) <= check_x) && (final_x > rect.x) {
+							if (check_x - rect.width) < revised_x {
+								// Found earlier collision moving to the right
+								revised_x = check_x - rect.width;
+								collision = Some(revised_x);
+							}
+						} else if (rect.x >= (check_x + check_width)) && (final_x < rect.x) {
+							if (check_x + check_width) > revised_x {
+								// Found earlier collision moving to the left
+								revised_x = check_x + check_width;
+								collision = Some(revised_x);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		collision
+	}
+
+	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize) -> Option<isize> {
+		let left_tile = rect.x / self.tile_width as isize;
+		let right_tile = (rect.x + rect.width - 1) / self.tile_width as isize;
+		let top_tile = min(rect.y, final_y) / self.tile_height as isize;
+		let bottom_tile = (max(rect.y, final_y) + rect.height - 1) / self.tile_height as isize;
+
+		let mut revised_y = final_y;
+		let mut collision = None;
+
+		if (left_tile < 0) || (right_tile >= self.width as isize) {
+			// Outside bounds is always colliding
+			return Some(rect.y);
+		}
+
+		if top_tile < 0 {
+			// Heads out of bounds, find exit point
+			if rect.y < 0 {
+				return Some(rect.y);
+			}
+			revised_y = 0;
+			collision = Some(0);
+		}
+
+		if bottom_tile >= self.height as isize {
+			// Heads out of bounds, find exit point
+			if (rect.y + rect.height) > (self.height * self.tile_height) as isize {
+				return Some(rect.y);
+			}
+			revised_y = (self.height * self.tile_height) as isize - rect.height;
+			collision = Some(revised_y);
+		}
+
+		for tile_y in top_tile ..= bottom_tile {
+			for tile_x in left_tile ..= right_tile {
+				if let Some(tile_ref) = self.get_tile(tile_x as usize, tile_y as usize) {
+					let tile = &tile_ref.tile_set.tiles[tile_ref.tile_index];
+					for tile_rect in &tile.collision {
+						let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+						let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+						let check_width = tile_rect.width;
+						let check_height = tile_rect.height;
+
+						if (check_x >= (rect.x + rect.width)) || (rect.x >= (check_x + check_width)) {
+							// Not colliding on x axis
+							continue;
+						}
+
+						if (check_y < (rect.y + rect.height)) && (rect.y < (check_y + check_height)) {
+							// Already colliding at start
+							return Some(rect.y);
+						}
+
+						if ((rect.y + rect.height) <= check_y) && (final_y > rect.y) {
+							if (check_y - rect.height) < revised_y {
+								// Found earlier collision moving down
+								revised_y = check_y - rect.height;
+								collision = Some(revised_y);
+							}
+						} else if (rect.y >= (check_y + check_height)) && (final_y < rect.y) {
+							if (check_y + check_height) > revised_y {
+								// Found earlier collision moving up
+								revised_y = check_y + check_height;
+								collision = Some(revised_y);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		collision
+	}
 }
 
 impl Map {
@@ -345,5 +492,35 @@ impl Map {
 			}
 		}
 		false
+	}
+
+	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize) -> Option<isize> {
+		if rect.x == final_x {
+			return None;
+		}
+		let mut collision = None;
+		let mut revised_x = final_x;
+		for layer in &self.layers {
+			if let Some(new_x) = layer.sweep_collision_x(rect, revised_x) {
+				revised_x = new_x;
+				collision = Some(new_x);
+			}
+		}
+		collision
+	}
+
+	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize) -> Option<isize> {
+		if rect.y == final_y {
+			return None;
+		}
+		let mut collision = None;
+		let mut revised_y = final_y;
+		for layer in &self.layers {
+			if let Some(new_y) = layer.sweep_collision_y(rect, revised_y) {
+				revised_y = new_y;
+				collision = Some(new_y);
+			}
+		}
+		collision
 	}
 }

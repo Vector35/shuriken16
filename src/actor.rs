@@ -47,21 +47,44 @@ pub trait Actor {
 		full_x += actor_info.velocity_x;
 		full_y += actor_info.velocity_y;
 
-		let new_x = full_x >> 8;
-		let new_y = full_y >> 8;
+		let mut new_x = full_x >> 8;
+		let mut new_y = full_y >> 8;
 
-		let new_bounds = match &actor_info.collision_bounds {
-			Some(collision_bounds) => BoundingRect {
-				x: new_x + collision_bounds.x,
-				y: new_y + collision_bounds.y,
-				width: collision_bounds.width,
-				height: collision_bounds.height
-			},
-			None => BoundingRect { x: new_x, y: new_y, width: 1, height: 1 }
+		let collision_x_offset;
+		let collision_y_offset;
+		let collision_width;
+		let collision_height;
+		if let Some(collision_bounds) = &actor_info.collision_bounds {
+			collision_x_offset = collision_bounds.x;
+			collision_y_offset = collision_bounds.y;
+			collision_width = collision_bounds.width;
+			collision_height = collision_bounds.height;
+		} else {
+			collision_x_offset = 0;
+			collision_y_offset = 0;
+			collision_width = 1;
+			collision_height = 1;
+		}
+
+		let mut bounds = BoundingRect {
+			x: actor_info.x + collision_x_offset,
+			y: actor_info.y + collision_y_offset,
+			width: collision_width,
+			height: collision_height
 		};
 
-		if game_state.map.check_collision(&new_bounds) {
-			return;
+		if let Some(revised_x) = game_state.map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
+			new_x = revised_x - collision_x_offset;
+			full_x = new_x << 8;
+			actor_info.velocity_x = 0;
+		}
+
+		bounds.x = new_x + collision_x_offset;
+
+		if let Some(revised_y) = game_state.map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
+			new_y = revised_y - collision_y_offset;
+			full_y = new_y << 8;
+			actor_info.velocity_y = 0;
 		}
 
 		actor_info.x = full_x >> 8;
