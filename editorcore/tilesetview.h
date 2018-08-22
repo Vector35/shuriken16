@@ -42,6 +42,9 @@ class TileSetView: public EditorView
 	ToolWidget* m_rotateMode;
 	ToolWidget* m_zoomInMode;
 	ToolWidget* m_zoomOutMode;
+	ToolWidget* m_collisionMode;
+	ToolWidget* m_removeCollisions;
+	ToolWidget* m_collideWithAll;
 
 	QTimer* m_deferredUpdateTimer;
 	std::chrono::steady_clock::time_point m_lastUpdate;

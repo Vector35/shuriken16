@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::{RefCell, Ref, RefMut};
 use sprite::{Sprite, SpriteAnimation};
+use game::GameState;
 
 pub struct SpriteWithOffset {
 	pub sprite: Rc<Sprite>,
@@ -37,23 +38,41 @@ pub trait Actor {
 	fn actor_info(&self) -> &ActorInfo;
 	fn actor_info_mut(&mut self) -> &mut ActorInfo;
 
-	fn update(&mut self) {}
+	fn update(&mut self, _game_state: &GameState) {}
 
-	fn apply_move(&mut self) {
+	fn apply_move(&mut self, game_state: &GameState) {
 		let actor_info = self.actor_info_mut();
 		let mut full_x = (actor_info.x << 8) + actor_info.subpixel_x as isize;
 		let mut full_y = (actor_info.y << 8) + actor_info.subpixel_y as isize;
 		full_x += actor_info.velocity_x;
 		full_y += actor_info.velocity_y;
+
+		let new_x = full_x >> 8;
+		let new_y = full_y >> 8;
+
+		let new_bounds = match &actor_info.collision_bounds {
+			Some(collision_bounds) => BoundingRect {
+				x: new_x + collision_bounds.x,
+				y: new_y + collision_bounds.y,
+				width: collision_bounds.width,
+				height: collision_bounds.height
+			},
+			None => BoundingRect { x: new_x, y: new_y, width: 1, height: 1 }
+		};
+
+		if game_state.map.check_collision(&new_bounds) {
+			return;
+		}
+
 		actor_info.x = full_x >> 8;
 		actor_info.y = full_y >> 8;
 		actor_info.subpixel_x = (full_x & 0xff) as u8;
 		actor_info.subpixel_y = (full_y & 0xff) as u8;
 	}
 
-	fn tick(&mut self) {
-		self.update();
-		self.apply_move();
+	fn tick(&mut self, game_state: &GameState) {
+		self.update(game_state);
+		self.apply_move(game_state);
 	}
 
 	fn add_sprite(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize) {

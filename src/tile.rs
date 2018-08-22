@@ -6,12 +6,22 @@ use std::rc::Rc;
 use palette::Palette;
 use asset;
 use asset::AssetNamespace;
+use actor::BoundingRect;
+
+#[derive(Serialize, Deserialize)]
+struct RawBoundingRect {
+	pub x: usize,
+	pub y: usize,
+	pub w: usize,
+	pub h: usize
+}
 
 #[derive(Serialize, Deserialize)]
 struct RawTile {
 	pub palette: Option<String>,
 	pub offset: Option<usize>,
-	pub data: String
+	pub data: String,
+	pub collision: Option<Vec<RawBoundingRect>>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,20 +41,18 @@ pub struct PaletteWithOffset {
 	pub offset: usize
 }
 
-#[derive(Debug)]
 pub struct Tile {
 	pub palette: Option<PaletteWithOffset>,
-	pub data: Vec<u8>
+	pub data: Vec<u8>,
+	pub collision: Vec<BoundingRect>
 }
 
-#[derive(Debug)]
 pub struct Animation {
 	pub total_length: usize,
 	pub frame_lengths: Vec<usize>,
 	pub frame_for_time: Vec<usize>
 }
 
-#[derive(Debug)]
 pub struct TileSet {
 	pub name: String,
 	pub id: String,
@@ -169,7 +177,20 @@ impl TileSet {
 				return Err(io::Error::new(io::ErrorKind::InvalidData, "Tile data size is incorrect for its tile set"));
 			}
 
-			tile_set.tiles.push(Tile { palette, data });
+			// Process collision data
+			let mut collision = Vec::new();
+			if let Some(raw_collision) = raw_tile.collision {
+				for rect in raw_collision {
+					collision.push(BoundingRect {
+						x: rect.x as isize,
+						y: rect.y as isize,
+						width: rect.w as isize,
+						height: rect.h as isize
+					});
+				}
+			}
+
+			tile_set.tiles.push(Tile { palette, data, collision });
 		}
 
 		Ok(Rc::new(tile_set))

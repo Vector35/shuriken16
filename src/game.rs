@@ -203,7 +203,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	// Tick actors
 	for actor in &game_state.actors {
 		let mut actor_ref = actor.borrow_mut();
-		actor_ref.tick();
+		actor_ref.tick(game_state);
 	}
 
 	// Update camera state

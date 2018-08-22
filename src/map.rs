@@ -230,6 +230,40 @@ impl MapLayer {
 		self.height = height;
 		self.tiles = new_tiles;
 	}
+
+	pub fn check_collision(&self, rect: &BoundingRect) -> bool {
+		let left_tile = rect.x / self.tile_width as isize;
+		let right_tile = (rect.x + rect.width - 1) / self.tile_width as isize;
+		let top_tile = rect.y / self.tile_height as isize;
+		let bottom_tile = (rect.y + rect.height - 1) / self.tile_height as isize;
+
+		if (left_tile < 0) || (right_tile >= self.width as isize) ||
+			(top_tile < 0) || (bottom_tile >= self.height as isize) {
+			// Outside bounds is always colliding
+			return true;
+		}
+
+		for tile_y in top_tile ..= bottom_tile {
+			for tile_x in left_tile ..= right_tile {
+				if let Some(tile_ref) = self.get_tile(tile_x as usize, tile_y as usize) {
+					let tile = &tile_ref.tile_set.tiles[tile_ref.tile_index];
+					for tile_rect in &tile.collision {
+						let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+						let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+						let check_width = tile_rect.width;
+						let check_height = tile_rect.height;
+
+						if (check_x < (rect.x + rect.width)) && (rect.x < (check_x + check_width)) &&
+							(check_y < (rect.y + rect.height)) && (rect.y < (check_y + check_height)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		false
+	}
 }
 
 impl Map {
@@ -302,5 +336,14 @@ impl Map {
 			}
 		}
 		None
+	}
+
+	pub fn check_collision(&self, rect: &BoundingRect) -> bool {
+		for layer in &self.layers {
+			if layer.check_collision(rect) {
+				return true
+			}
+		}
+		false
 	}
 }

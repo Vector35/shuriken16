@@ -179,6 +179,21 @@ Json::Value Tile::Serialize()
 	}
 	tile["data"] = data;
 
+	if (m_collision.size() > 0)
+	{
+		Json::Value collision(Json::arrayValue);
+		for (auto& i : m_collision)
+		{
+			Json::Value rect(Json::objectValue);
+			rect["x"] = i.x;
+			rect["y"] = i.y;
+			rect["w"] = i.width;
+			rect["h"] = i.height;
+			collision.append(rect);
+		}
+		tile["collision"] = collision;
+	}
+
 	return tile;
 }
 
@@ -199,6 +214,19 @@ shared_ptr<Tile> Tile::Deserialize(shared_ptr<Project> project, const Json::Valu
 
 	for (size_t i = 0; i < result->m_size; i++)
 		result->m_data[i] = (uint8_t)strtoul(dataStr.substr(i * 2, 2).c_str(), nullptr, 16);
+
+	if (data.isMember("collision"))
+	{
+		for (auto& i : data["collision"])
+		{
+			BoundingRect rect;
+			rect.x = (uint16_t)i["x"].asUInt();
+			rect.y = (uint16_t)i["y"].asUInt();
+			rect.width = (uint16_t)i["w"].asUInt();
+			rect.height = (uint16_t)i["h"].asUInt();
+			result->m_collision.push_back(rect);
+		}
+	}
 
 	return result;
 }

@@ -16,7 +16,8 @@ enum EditorTool
 	RectangleTool,
 	FilledRectangleTool,
 	LineTool,
-	FillTool
+	FillTool,
+	CollisionTool
 };
 
 class TileSetAnimationWidget;
@@ -46,6 +47,12 @@ class TileSetEditorWidget: public QWidget
 	{
 		size_t oldCols;
 		size_t newCols;
+	};
+
+	struct CollisionUpdateAction
+	{
+		size_t tileIndex;
+		std::vector<BoundingRect> oldCollision, newCollision;
 	};
 
 	MainWindow* m_mainWindow;
@@ -97,6 +104,8 @@ class TileSetEditorWidget: public QWidget
 	void UpdateFilledRectangleLayer(QMouseEvent* event);
 	void UpdateLineLayer(QMouseEvent* event);
 	void Fill(QMouseEvent* event);
+	void AddSelectionAsCollision();
+	void SetSelectionAsCollision();
 
 	void CommitPendingActions();
 
@@ -132,6 +141,9 @@ public:
 	bool Copy();
 	bool Paste();
 	void SelectAll();
+
+	void RemoveCollisions();
+	void CollideWithAll();
 
 protected:
 	virtual void paintEvent(QPaintEvent* event) override;

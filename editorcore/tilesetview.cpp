@@ -74,6 +74,21 @@ TileSetView::TileSetView(MainWindow* parent, shared_ptr<Project> project, shared
 		[=]() { m_editor->ZoomOut(); });
 	headerLayout->addWidget(m_zoomOutMode);
 
+	headerLayout->addSpacing(16);
+
+	m_collisionMode = new ToolWidget("⎄", "Collision Editor",
+		[=]() { return m_editor->GetTool() == CollisionTool; },
+		[=]() { m_editor->SetTool(CollisionTool); UpdateToolState(); });
+	headerLayout->addWidget(m_collisionMode);
+	m_removeCollisions = new ToolWidget("✖", "Remove All Collisions",
+		[=]() { return false; },
+		[=]() { m_editor->RemoveCollisions(); UpdateToolState(); });
+	headerLayout->addWidget(m_removeCollisions);
+	m_collideWithAll = new ToolWidget("✚", "Collide with All",
+		[=]() { return false; },
+		[=]() { m_editor->CollideWithAll(); UpdateToolState(); });
+	headerLayout->addWidget(m_collideWithAll);
+
 	m_colCount = new QLabel();
 	headerLayout->addStretch(1);
 	headerLayout->addWidget(m_colCount);
@@ -161,6 +176,7 @@ void TileSetView::UpdateToolState()
 	m_fillRectMode->UpdateState();
 	m_lineMode->UpdateState();
 	m_fillMode->UpdateState();
+	m_collisionMode->UpdateState();
 }
 
 

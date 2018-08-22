@@ -7,6 +7,12 @@
 
 class Project;
 
+struct BoundingRect
+{
+	uint16_t x, y;
+	uint16_t width, height;
+};
+
 class Tile
 {
 	uint16_t m_width, m_height, m_depth, m_frames;
@@ -14,6 +20,7 @@ class Tile
 	size_t m_size, m_frameSize, m_pitch;
 	std::shared_ptr<Palette> m_palette;
 	uint8_t m_paletteOffset;
+	std::vector<BoundingRect> m_collision;
 
 public:
 	Tile(uint16_t width, uint16_t height, uint16_t depth = 4, uint16_t frames = 1);
@@ -43,6 +50,9 @@ public:
 	std::shared_ptr<Palette> GetPalette() const { return m_palette; }
 	uint8_t GetPaletteOffset() const { return m_paletteOffset; }
 	void SetPalette(const std::shared_ptr<Palette> palette, uint8_t offset);
+
+	const std::vector<BoundingRect> GetCollision() const { return m_collision; }
+	void SetCollision(const std::vector<BoundingRect>& collision) { m_collision = collision; }
 
 	Json::Value Serialize();
 	static std::shared_ptr<Tile> Deserialize(std::shared_ptr<Project> project, const Json::Value& data,

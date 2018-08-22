@@ -334,6 +334,16 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 				p.setBrush(Qt::NoBrush);
 				p.drawRect(tileWidth * tileX, tileHeight * tileY, tileWidth, tileHeight);
 			}
+
+			if (m_tool == CollisionTool)
+			{
+				for (auto& i : tile->GetCollision())
+				{
+					p.setPen(QPen(QBrush(Theme::red), 2, Qt::DashDotLine));
+					p.drawRect(tileWidth * tileX + i.x * m_zoom + (m_zoom / 2), tileHeight * tileY + i.y * m_zoom + (m_zoom / 2),
+						i.width * m_zoom - m_zoom, i.height * m_zoom - m_zoom);
+				}
+			}
 		}
 	}
 
@@ -924,6 +934,138 @@ void TileSetEditorWidget::Fill(QMouseEvent* event)
 }
 
 
+void TileSetEditorWidget::AddSelectionAsCollision()
+{
+	shared_ptr<TileSetFloatingLayer> layer = m_selectionContents;
+	m_selectionContents.reset();
+	m_underSelection.reset();
+	m_pendingSelections.clear();
+	if (!layer)
+		return;
+
+	int tileX = layer->GetX() / m_tileSet->GetWidth();
+	int tileY = layer->GetY() / m_tileSet->GetHeight();
+	if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+		return;
+
+	size_t tileIndex = (tileY * m_columns) + tileX;
+	if (tileIndex >= m_tileSet->GetTileCount())
+		return;
+	shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+	if (!tile)
+		return;
+
+	BoundingRect rect;
+	rect.x = layer->GetX() % m_tileSet->GetWidth();
+	rect.y = layer->GetY() % m_tileSet->GetHeight();
+	rect.width = layer->GetWidth();
+	rect.height = layer->GetHeight();
+	if ((rect.x + rect.width) > m_tileSet->GetWidth())
+		rect.width = m_tileSet->GetWidth() - rect.x;
+	if ((rect.y + rect.height) > m_tileSet->GetHeight())
+		rect.height = m_tileSet->GetHeight() - rect.y;
+
+	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> newCollision = oldCollision;
+	newCollision.push_back(rect);
+
+	tile->SetCollision(newCollision);
+	m_mainWindow->UpdateTileSetContents(m_tileSet);
+
+	MainWindow* mainWindow = m_mainWindow;
+	shared_ptr<TileSet> tileSet = m_tileSet;
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(oldCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		},
+		[=]() { // Redo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(newCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		});
+}
+
+
+void TileSetEditorWidget::SetSelectionAsCollision()
+{
+	shared_ptr<TileSetFloatingLayer> layer = m_selectionContents;
+	m_selectionContents.reset();
+	m_underSelection.reset();
+	m_pendingSelections.clear();
+	if (!layer)
+		return;
+
+	int tileX = layer->GetX() / m_tileSet->GetWidth();
+	int tileY = layer->GetY() / m_tileSet->GetHeight();
+	if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+		return;
+
+	size_t tileIndex = (tileY * m_columns) + tileX;
+	if (tileIndex >= m_tileSet->GetTileCount())
+		return;
+	shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+	if (!tile)
+		return;
+
+	BoundingRect rect;
+	rect.x = layer->GetX() % m_tileSet->GetWidth();
+	rect.y = layer->GetY() % m_tileSet->GetHeight();
+	rect.width = layer->GetWidth();
+	rect.height = layer->GetHeight();
+	if ((rect.x + rect.width) > m_tileSet->GetWidth())
+		rect.width = m_tileSet->GetWidth() - rect.x;
+	if ((rect.y + rect.height) > m_tileSet->GetHeight())
+		rect.height = m_tileSet->GetHeight() - rect.y;
+
+	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> newCollision;
+	newCollision.push_back(rect);
+
+	tile->SetCollision(newCollision);
+	m_mainWindow->UpdateTileSetContents(m_tileSet);
+
+	MainWindow* mainWindow = m_mainWindow;
+	shared_ptr<TileSet> tileSet = m_tileSet;
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(oldCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		},
+		[=]() { // Redo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(newCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		});
+}
+
+
 void TileSetEditorWidget::mousePressEvent(QMouseEvent* event)
 {
 	if (event->button() == Qt::LeftButton)
@@ -984,6 +1126,16 @@ void TileSetEditorWidget::mousePressEvent(QMouseEvent* event)
 	case FillTool:
 		Fill(event);
 		CommitPendingActions();
+		break;
+
+	case CollisionTool:
+		m_startX = event->x() / m_zoom;
+		m_startY = event->y() / m_zoom;
+		m_selectionContents.reset();
+		m_underSelection.reset();
+		m_moveSelection = false;
+		m_waitForSelection = 6;
+		update();
 		break;
 
 	default:
@@ -1144,6 +1296,17 @@ void TileSetEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 		m_floatingLayer.reset();
 		break;
 
+	case CollisionTool:
+		if (m_waitForSelection > 0)
+			break;
+		UpdateSelectionLayer(event);
+		if (event->modifiers() & Qt::ShiftModifier)
+			AddSelectionAsCollision();
+		else
+			SetSelectionAsCollision();
+		update();
+		break;
+
 	default:
 		break;
 	}
@@ -1190,6 +1353,15 @@ void TileSetEditorWidget::mouseMoveEvent(QMouseEvent* event)
 
 		case LineTool:
 			UpdateLineLayer(event);
+			break;
+
+		case CollisionTool:
+			if (m_waitForSelection > 0)
+			{
+				m_waitForSelection--;
+				break;
+			}
+			UpdateSelectionLayer(event);
 			break;
 
 		default:
@@ -1636,4 +1808,107 @@ void TileSetEditorWidget::SelectAll()
 
 	CommitPendingActions();
 	update();
+}
+
+
+void TileSetEditorWidget::RemoveCollisions()
+{
+	m_tool = CollisionTool;
+
+	vector<CollisionUpdateAction> actions;
+	for (size_t i = 0; i < m_tileSet->GetTileCount(); i++)
+	{
+		shared_ptr<Tile> tile = m_tileSet->GetTile(i);
+		if (!tile)
+			continue;
+
+		CollisionUpdateAction action;
+		action.tileIndex = i;
+		action.oldCollision = tile->GetCollision();
+		tile->SetCollision(action.newCollision);
+		actions.push_back(action);
+	}
+
+	m_mainWindow->UpdateTileSetContents(m_tileSet);
+
+	MainWindow* mainWindow = m_mainWindow;
+	shared_ptr<TileSet> tileSet = m_tileSet;
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			for (auto& i : actions)
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.oldCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		},
+		[=]() { // Redo
+			for (auto& i : actions)
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.newCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		});
+}
+
+
+void TileSetEditorWidget::CollideWithAll()
+{
+	m_tool = CollisionTool;
+
+	BoundingRect rect;
+	rect.x = 0;
+	rect.y = 0;
+	rect.width = m_tileSet->GetWidth();
+	rect.height = m_tileSet->GetHeight();
+
+	vector<CollisionUpdateAction> actions;
+	for (size_t i = 0; i < m_tileSet->GetTileCount(); i++)
+	{
+		shared_ptr<Tile> tile = m_tileSet->GetTile(i);
+		if (!tile)
+			continue;
+
+		CollisionUpdateAction action;
+		action.tileIndex = i;
+		action.oldCollision = tile->GetCollision();
+		action.newCollision.push_back(rect);
+		tile->SetCollision(action.newCollision);
+		actions.push_back(action);
+	}
+
+	m_mainWindow->UpdateTileSetContents(m_tileSet);
+
+	MainWindow* mainWindow = m_mainWindow;
+	shared_ptr<TileSet> tileSet = m_tileSet;
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			for (auto& i : actions)
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.oldCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		},
+		[=]() { // Redo
+			for (auto& i : actions)
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.newCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		});
 }
