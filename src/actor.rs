@@ -2,13 +2,16 @@ use std::rc::Rc;
 use std::cell::{RefCell, Ref, RefMut};
 use sprite::{Sprite, SpriteAnimation};
 use game::GameState;
+use map::BlendMode;
 
 pub struct SpriteWithOffset {
 	pub sprite: Rc<Sprite>,
 	pub animation: Rc<SpriteAnimation>,
 	pub animation_frame: usize,
 	pub x_offset: isize,
-	pub y_offset: isize
+	pub y_offset: isize,
+	pub blend_mode: BlendMode,
+	pub alpha: u8
 }
 
 pub struct BoundingRect {
@@ -105,7 +108,22 @@ pub trait Actor {
 			sprite,
 			animation,
 			animation_frame: 0,
-			x_offset, y_offset
+			x_offset, y_offset,
+			blend_mode: BlendMode::Normal,
+			alpha: 0
+		});
+	}
+
+	fn add_sprite_with_blending(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize,
+		blend_mode: BlendMode, alpha: u8) {
+		let actor_info = self.actor_info_mut();
+		let animation = sprite.get_default_animation();
+		actor_info.sprites.push(SpriteWithOffset {
+			sprite,
+			animation,
+			animation_frame: 0,
+			x_offset, y_offset,
+			blend_mode, alpha
 		});
 	}
 

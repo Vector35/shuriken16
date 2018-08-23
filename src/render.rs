@@ -457,9 +457,10 @@ fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: 
 	};
 }
 
-fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+fn render_sprite_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
 	x: isize, y: isize, animation: &SpriteAnimation, frame: usize,
-	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
+	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16)),
+	blend: &Fn(&mut u16, u16)) {
 	if (x >= render_size.width as isize) || (y >= render_size.height as isize) ||
 		(x <= -(animation.width as isize)) || (y <= -(animation.height as isize)) {
 		return;
@@ -503,16 +504,58 @@ fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Ve
 		let row_data = &sprite_data[(y_offset + pixel_y) * pitch .. (y_offset + pixel_y + 1) * pitch];
 		let render_buf_row = &mut render_buf[y_start + pixel_y];
 		let render_buf_tile = &mut render_buf_row[x_start .. x_start + width];
-		tile_renderer(render_buf_tile, row_data, x_offset, width, &animation.palette, &normal_blend);
+		tile_renderer(render_buf_tile, row_data, x_offset, width, &animation.palette, &blend);
 	}
 }
 
+fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: isize, y: isize,
+	animation: &SpriteAnimation, frame: usize, blend_mode: &BlendMode, alpha: u8,
+	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
+	match alpha {
+		0 => {
+			match blend_mode {
+				BlendMode::Normal =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &normal_blend),
+				BlendMode::Add =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &add_blend),
+				BlendMode::Subtract =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &subtract_blend),
+				BlendMode::Multiply =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &multiply_blend)
+			};
+		},
+		alpha => {
+			match blend_mode {
+				BlendMode::Normal =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &normal_blend)),
+				BlendMode::Add =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &add_blend)),
+				BlendMode::Subtract =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &subtract_blend)),
+				BlendMode::Multiply =>
+					render_sprite_with_blending(render_size, render_buf, x, y, animation, frame,
+						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &multiply_blend)),
+			};
+		}
+	};
+}
+
 fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: isize, y: isize,
-	animation: &SpriteAnimation, frame: usize) {
+	animation: &SpriteAnimation, frame: usize, blend_mode: &BlendMode, alpha: u8) {
 	match animation.depth {
-		4 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_4bit),
-		8 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_8bit),
-		16 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame, &render_tile_16bit),
+		4 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame,
+			blend_mode, alpha, &render_tile_4bit),
+		8 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame,
+			blend_mode, alpha, &render_tile_8bit),
+		16 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame,
+			blend_mode, alpha, &render_tile_16bit),
 		_ => panic!("Invalid sprite bit depth {}", animation.depth)
 	};
 }
@@ -550,7 +593,8 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, ga
 		let actor_info = actor_ref.actor_info();
 		for sprite in &actor_info.sprites {
 			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
-				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame);
+				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame,
+				&sprite.blend_mode, sprite.alpha);
 		}
 	}
 }
