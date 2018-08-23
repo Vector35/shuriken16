@@ -106,6 +106,7 @@ class TileSetEditorWidget: public QWidget
 	void Fill(QMouseEvent* event);
 	void AddSelectionAsCollision();
 	void SetSelectionAsCollision();
+	void RemoveSingleCollision();
 
 	void CommitPendingActions();
 

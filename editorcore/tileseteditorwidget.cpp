@@ -340,8 +340,8 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 				for (auto& i : tile->GetCollision())
 				{
 					p.setPen(QPen(QBrush(Theme::red), 2, Qt::DashDotLine));
-					p.drawRect(tileWidth * tileX + i.x * m_zoom + (m_zoom / 2), tileHeight * tileY + i.y * m_zoom + (m_zoom / 2),
-						i.width * m_zoom - m_zoom, i.height * m_zoom - m_zoom);
+					p.drawRect(tileWidth * tileX + i.x * m_zoom + (m_zoom / 4), tileHeight * tileY + i.y * m_zoom + (m_zoom / 4),
+						i.width * m_zoom - m_zoom / 2, i.height * m_zoom - m_zoom / 2);
 				}
 			}
 		}
@@ -1066,6 +1066,54 @@ void TileSetEditorWidget::SetSelectionAsCollision()
 }
 
 
+void TileSetEditorWidget::RemoveSingleCollision()
+{
+	int tileX = m_startX / m_tileSet->GetWidth();
+	int tileY = m_startY / m_tileSet->GetHeight();
+	if ((tileX < 0) || (tileX >= (int)m_columns) || (tileY < 0) || (tileY >= (int)m_rows))
+		return;
+
+	size_t tileIndex = (tileY * m_columns) + tileX;
+	if (tileIndex >= m_tileSet->GetTileCount())
+		return;
+	shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+	if (!tile)
+		return;
+
+	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> newCollision;
+
+	tile->SetCollision(newCollision);
+	m_mainWindow->UpdateTileSetContents(m_tileSet);
+
+	MainWindow* mainWindow = m_mainWindow;
+	shared_ptr<TileSet> tileSet = m_tileSet;
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(oldCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		},
+		[=]() { // Redo
+			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
+			tile->SetCollision(newCollision);
+			mainWindow->UpdateTileSetContents(tileSet);
+			TileSetView* view = mainWindow->GetTileSetView(tileSet);
+			if (view)
+			{
+				view->GetEditor()->SetTool(CollisionTool);
+				view->UpdateToolState();
+			}
+		});
+}
+
+
 void TileSetEditorWidget::mousePressEvent(QMouseEvent* event)
 {
 	if (event->button() == Qt::LeftButton)
@@ -1298,7 +1346,12 @@ void TileSetEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 
 	case CollisionTool:
 		if (m_waitForSelection > 0)
+		{
+			if (!(event->modifiers() & Qt::ShiftModifier))
+				RemoveSingleCollision();
+			update();
 			break;
+		}
 		UpdateSelectionLayer(event);
 		if (event->modifiers() & Qt::ShiftModifier)
 			AddSelectionAsCollision();
