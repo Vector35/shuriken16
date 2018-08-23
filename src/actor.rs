@@ -128,6 +128,7 @@ pub trait Actor {
 
 	fn on_button_down(&mut self, _name: &str) {}
 	fn on_button_up(&mut self, _name: &str) {}
+	fn on_axis_changed(&mut self, _name: &str, _value: f32) {}
 }
 
 impl ActorInfo {

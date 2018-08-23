@@ -7,6 +7,7 @@ use emscripten::emscripten;
 use self::sdl2::EventPump;
 use self::sdl2::event::{Event, WindowEvent};
 use self::sdl2::keyboard::Keycode;
+use self::sdl2::joystick::{Joystick, HatState};
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::rect::Rect;
 use self::sdl2::render::{Canvas, Texture};
@@ -22,6 +23,13 @@ use ui::UILayer;
 use actor::{Actor, ActorRef};
 use camera::Camera;
 
+pub struct HatBindings {
+	left: String,
+	right: String,
+	up: String,
+	down: String
+}
+
 pub struct GameState {
 	pub map: Map,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
@@ -32,12 +40,16 @@ pub struct GameState {
 	pub scroll_x: isize,
 	pub scroll_y: isize,
 	pub frame: usize,
-	pub key_bindings: HashMap<Keycode, String>
+	pub key_bindings: HashMap<Keycode, String>,
+	pub axis_bindings: HashMap<u8, String>,
+	pub button_bindings: HashMap<u8, String>,
+	pub hat_bindings: HashMap<u8, HatBindings>
 }
 
 pub struct RenderState {
 	canvas: Canvas<Window>,
 	events: EventPump,
+	_joystick: Option<Joystick>,
 	screen_width: usize,
 	screen_height: usize,
 	resolution_target: ResolutionTarget,
@@ -69,6 +81,23 @@ impl GameState {
 		self.key_bindings.insert(key, button.to_string());
 	}
 
+	pub fn bind_axis(&mut self, axis: u8, name: &str) {
+		self.axis_bindings.insert(axis, name.to_string());
+	}
+
+	pub fn bind_button(&mut self, button: u8, name: &str) {
+		self.button_bindings.insert(button, name.to_string());
+	}
+
+	pub fn bind_hat(&mut self, hat: u8, left: &str, right: &str, up: &str, down: &str) {
+		self.hat_bindings.insert(hat, HatBindings {
+			left: left.to_string(),
+			right: right.to_string(),
+			up: up.to_string(),
+			down: down.to_string()
+		});
+	}
+
 	pub fn set_controlled_actor(&mut self, actor: &ActorRef) {
 		self.controlled_actor = Some(actor.clone());
 	}
@@ -89,6 +118,92 @@ impl GameState {
 		if let Some(action) = self.key_bindings.get(&key) {
 			if let Some(actor) = &self.controlled_actor {
 				actor.borrow_mut().on_button_up(action);
+			}
+		}
+	}
+
+	fn axis_changed(&self, axis: u8, value: i16) {
+		let mut adjusted_value = 0.0;
+		if value < -0x7000 {
+			adjusted_value = -1.0;
+		} else if value < -0x1000 {
+			adjusted_value = (value + 0x1000) as f32 / 0x6000 as f32;
+		} else if value > 0x7000 {
+			adjusted_value = 1.0;
+		} else if value > 0x1000 {
+			adjusted_value = (value - 0x1000) as f32 / 0x6000 as f32;
+		}
+		if let Some(action) = self.axis_bindings.get(&axis) {
+			if let Some(actor) = &self.controlled_actor {
+				actor.borrow_mut().on_axis_changed(action, adjusted_value);
+			}
+		}
+	}
+
+	fn button_down(&self, button: u8) {
+		if let Some(action) = self.button_bindings.get(&button) {
+			if let Some(actor) = &self.controlled_actor {
+				actor.borrow_mut().on_button_down(action);
+			}
+		}
+	}
+
+	fn button_up(&self, button: u8) {
+		if let Some(action) = self.button_bindings.get(&button) {
+			if let Some(actor) = &self.controlled_actor {
+				actor.borrow_mut().on_button_up(action);
+			}
+		}
+	}
+
+	fn hat_changed(&self, hat: u8, state: HatState) {
+		if let Some(action) = self.hat_bindings.get(&hat) {
+			if let Some(actor) = &self.controlled_actor {
+				let left = match state {
+					HatState::Left => true,
+					HatState::LeftUp => true,
+					HatState::LeftDown => true,
+					_ => false
+				};
+				let right = match state {
+					HatState::Right => true,
+					HatState::RightUp => true,
+					HatState::RightDown => true,
+					_ => false
+				};
+				let up = match state {
+					HatState::Up => true,
+					HatState::LeftUp => true,
+					HatState::RightUp => true,
+					_ => false
+				};
+				let down = match state {
+					HatState::Down => true,
+					HatState::LeftDown => true,
+					HatState::RightDown => true,
+					_ => false
+				};
+				let mut actor_ref = actor.borrow_mut();
+				if left {
+					actor_ref.on_button_down(&action.left);
+				} else {
+					actor_ref.on_button_up(&action.left);
+				}
+				if right {
+					actor_ref.on_button_down(&action.right);
+				} else {
+					actor_ref.on_button_up(&action.right);
+				}
+				if up {
+					actor_ref.on_button_down(&action.up);
+				} else {
+					actor_ref.on_button_up(&action.up);
+				}
+				if down {
+					actor_ref.on_button_down(&action.down);
+				} else {
+					actor_ref.on_button_up(&action.down);
+				}
 			}
 		}
 	}
@@ -123,6 +238,17 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		render_buf.push(line);
 	}
 
+	let joystick_subsys = sdl.joystick().unwrap();
+	let mut joystick = None;
+	if let Ok(joystick_count) = joystick_subsys.num_joysticks() {
+		for i in 0..joystick_count {
+			if let Ok(js) = joystick_subsys.open(i) {
+				joystick = Some(js);
+				break;
+			}
+		}
+	}
+
 	let events = sdl.event_pump().unwrap();
 
 	let game = GameState {
@@ -134,10 +260,13 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		frame: 0,
-		key_bindings: HashMap::new()
+		key_bindings: HashMap::new(),
+		axis_bindings: HashMap::new(),
+		button_bindings: HashMap::new(),
+		hat_bindings: HashMap::new()
 	};
 	let render_state = RenderState {
-		canvas, events,
+		canvas, events, _joystick: joystick,
 		screen_width, screen_height,
 		resolution_target: target,
 		dest_size,
@@ -164,6 +293,15 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				game_state.key_down(keycode),
 			Event::KeyUp {keycode: Some(keycode), ..} =>
 				game_state.key_up(keycode),
+
+			Event::JoyAxisMotion {axis_idx, value, ..} =>
+				game_state.axis_changed(axis_idx, value),
+			Event::JoyButtonDown {button_idx, ..} =>
+				game_state.button_down(button_idx),
+			Event::JoyButtonUp {button_idx, ..} =>
+				game_state.button_up(button_idx),
+			Event::JoyHatMotion {hat_idx, state, ..} =>
+				game_state.hat_changed(hat_idx, state),
 
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
 				render_state.screen_width = width as usize;
