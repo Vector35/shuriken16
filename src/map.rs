@@ -7,6 +7,7 @@ use tile::TileSet;
 use asset;
 use asset::AssetNamespace;
 use actor::BoundingRect;
+use palette::Palette;
 
 #[derive(Serialize, Deserialize)]
 struct RawMapLayer {
@@ -80,7 +81,7 @@ pub struct MapLayer {
 pub struct Map {
 	pub name: String,
 	pub id: String,
-	pub background_color: u16,
+	pub background_color: u32,
 	pub layers: Vec<Rc<MapLayer>>,
 	pub main_layer: Option<usize>
 }
@@ -429,7 +430,7 @@ impl Map {
 		let mut map = Map {
 			name: raw_map.name,
 			id: raw_map.id,
-			background_color: raw_map.background_color,
+			background_color: Palette::convert_color(raw_map.background_color),
 			layers: Vec::new(),
 			main_layer: match raw_map.main_layer {
 				-1 => None,

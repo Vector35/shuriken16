@@ -54,7 +54,7 @@ pub struct RenderState {
 	screen_height: usize,
 	resolution_target: ResolutionTarget,
 	dest_size: RenderSize,
-	render_buf: Vec<Vec<u16>>,
+	render_buf: Vec<Vec<u32>>,
 	texture: Texture,
 }
 
@@ -227,11 +227,11 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 	let (render_size, dest_size) = target.compute_render_sizes(screen_width, screen_height);
 
 	// Create texture for rendering each frame
-	let texture = canvas.create_texture_streaming(PixelFormatEnum::RGB555,
+	let texture = canvas.create_texture_streaming(PixelFormatEnum::RGB888,
 		render_size.width as u32, render_size.height as u32).unwrap();
 
 	// Create buffer to hold rendered pixels at internal resolution
-	let mut render_buf: Vec<Vec<u16>> = Vec::new();
+	let mut render_buf: Vec<Vec<u32>> = Vec::new();
 	for _ in 0 .. render_size.height {
 		let mut line = Vec::new();
 		line.resize(render_size.width, 0);
@@ -312,7 +312,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				game_state.render_size = render_size;
 				render_state.dest_size = dest_size;
 
-				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB555,
+				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB888,
 					game_state.render_size.width as u32, game_state.render_size.height as u32).unwrap();
 
 				render_state.render_buf = Vec::new();
@@ -356,9 +356,9 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	let render_buf = &render_state.render_buf;
 	render_state.texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
 		for y in 0..game_state.render_size.height {
-			let dest_line = &mut buffer[y * pitch .. (y * pitch) + (game_state.render_size.width * 2)];
+			let dest_line = &mut buffer[y * pitch .. (y * pitch) + (game_state.render_size.width * 4)];
 			let src_line = &render_buf[y];
-			LittleEndian::write_u16_into(src_line, dest_line);
+			LittleEndian::write_u32_into(src_line, dest_line);
 		}
 	}).unwrap();
 

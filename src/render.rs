@@ -9,6 +9,7 @@ use map::{MapLayer, BlendMode};
 use tile::{TileSet, PaletteWithOffset};
 use ui::{TextLayerRenderer, TextLayer, TextLayerContents, UILayer};
 use sprite::SpriteAnimation;
+use palette::Palette;
 
 #[derive(Debug)]
 pub enum ResolutionTargetMode {
@@ -155,46 +156,46 @@ impl TextLayerRenderer for FrameRateTextRenderer {
 	}
 }
 
-fn normal_blend(pixel: &mut u16, color: u16) {
+fn normal_blend(pixel: &mut u32, color: u32) {
 	*pixel = color;
 }
 
-fn add_blend(pixel: &mut u16, color: u16) {
+fn add_blend(pixel: &mut u32, color: u32) {
 	let existing_color = *pixel;
-	let existing_r = (existing_color >> 10) & 0x1f;
-	let existing_g = (existing_color >> 5) & 0x1f;
-	let existing_b = existing_color & 0x1f;
+	let existing_r = (existing_color >> 16) & 0xff;
+	let existing_g = (existing_color >> 8) & 0xff;
+	let existing_b = existing_color & 0xff;
 
-	let add_r = (color >> 10) & 0x1f;
-	let add_g = (color >> 5) & 0x1f;
-	let add_b = color & 0x1f;
+	let add_r = (color >> 16) & 0xff;
+	let add_g = (color >> 8) & 0xff;
+	let add_b = color & 0xff;
 
 	let mut blended_r = existing_r + add_r;
 	let mut blended_g = existing_g + add_g;
 	let mut blended_b = existing_b + add_b;
 
-	if blended_r > 0x1f {
-		blended_r = 0x1f;
+	if blended_r > 0xff {
+		blended_r = 0xff;
 	}
-	if blended_g > 0x1f {
-		blended_g = 0x1f;
+	if blended_g > 0xff {
+		blended_g = 0xff;
 	}
-	if blended_b > 0x1f {
-		blended_b = 0x1f;
+	if blended_b > 0xff {
+		blended_b = 0xff;
 	}
 
-	*pixel = (blended_r << 10) | (blended_g << 5) | blended_b;
+	*pixel = ((blended_r << 16) | (blended_g << 8) | blended_b) & 0xf8f8f8;
 }
 
-fn subtract_blend(pixel: &mut u16, color: u16) {
+fn subtract_blend(pixel: &mut u32, color: u32) {
 	let existing_color = *pixel;
-	let existing_r = (existing_color >> 10) & 0x1f;
-	let existing_g = (existing_color >> 5) & 0x1f;
-	let existing_b = existing_color & 0x1f;
+	let existing_r = (existing_color >> 16) & 0xff;
+	let existing_g = (existing_color >> 8) & 0xff;
+	let existing_b = existing_color & 0xff;
 
-	let sub_r = (color >> 10) & 0x1f;
-	let sub_g = (color >> 5) & 0x1f;
-	let sub_b = color & 0x1f;
+	let sub_r = (color >> 16) & 0xff;
+	let sub_g = (color >> 8) & 0xff;
+	let sub_b = color & 0xff;
 
 	let blended_r;
 	let blended_g;
@@ -215,58 +216,58 @@ fn subtract_blend(pixel: &mut u16, color: u16) {
 		blended_b = existing_b - sub_b;
 	}
 
-	*pixel = (blended_r << 10) | (blended_g << 5) | blended_b;
+	*pixel = ((blended_r << 16) | (blended_g << 8) | blended_b) & 0xf8f8f8;
 }
 
-fn multiply_blend(pixel: &mut u16, color: u16) {
+fn multiply_blend(pixel: &mut u32, color: u32) {
 	let existing_color = *pixel;
-	let existing_r = (existing_color >> 10) & 0x1f;
-	let existing_g = (existing_color >> 5) & 0x1f;
-	let existing_b = existing_color & 0x1f;
+	let existing_r = (existing_color >> 16) & 0xff;
+	let existing_g = (existing_color >> 8) & 0xff;
+	let existing_b = existing_color & 0xff;
 
-	let add_r = (color >> 10) & 0x1f;
-	let add_g = (color >> 5) & 0x1f;
-	let add_b = color & 0x1f;
+	let add_r = (color >> 16) & 0xff;
+	let add_g = (color >> 8) & 0xff;
+	let add_b = color & 0xff;
 
-	let mut blended_r = (existing_r * add_r) / 16;
-	let mut blended_g = (existing_g * add_g) / 16;
-	let mut blended_b = (existing_b * add_b) / 16;
+	let mut blended_r = (existing_r * add_r) / 0x80;
+	let mut blended_g = (existing_g * add_g) / 0x80;
+	let mut blended_b = (existing_b * add_b) / 0x80;
 
-	if blended_r > 0x1f {
-		blended_r = 0x1f;
+	if blended_r > 0xff {
+		blended_r = 0xff;
 	}
-	if blended_g > 0x1f {
-		blended_g = 0x1f;
+	if blended_g > 0xff {
+		blended_g = 0xff;
 	}
-	if blended_b > 0x1f {
-		blended_b = 0x1f;
+	if blended_b > 0xff {
+		blended_b = 0xff;
 	}
 
-	*pixel = (blended_r << 10) | (blended_g << 5) | blended_b;
+	*pixel = ((blended_r << 16) | (blended_g << 8) | blended_b) & 0xf8f8f8;
 }
 
-fn alpha_blend(pixel: &mut u16, color: u16, alpha: u8, blend: &Fn(&mut u16, u16)) {
+fn alpha_blend(pixel: &mut u32, color: u32, alpha: u8, blend: &Fn(&mut u32, u32)) {
 	let mut mixed_color = color;
 	blend(&mut mixed_color, color);
 
-	let mixed_r = (mixed_color >> 10) & 0x1f;
-	let mixed_g = (mixed_color >> 5) & 0x1f;
-	let mixed_b = mixed_color & 0x1f;
+	let mixed_r = (mixed_color >> 16) & 0xff;
+	let mixed_g = (mixed_color >> 8) & 0xff;
+	let mixed_b = mixed_color & 0xff;
 
 	let existing_color = *pixel;
-	let existing_r = (existing_color >> 10) & 0x1f;
-	let existing_g = (existing_color >> 5) & 0x1f;
-	let existing_b = existing_color & 0x1f;
+	let existing_r = (existing_color >> 16) & 0xff;
+	let existing_g = (existing_color >> 8) & 0xff;
+	let existing_b = existing_color & 0xff;
 
-	let blended_r = ((mixed_r * (16 - alpha as u16)) + (existing_r * alpha as u16)) / 16;
-	let blended_g = ((mixed_g * (16 - alpha as u16)) + (existing_g * alpha as u16)) / 16;
-	let blended_b = ((mixed_b * (16 - alpha as u16)) + (existing_b * alpha as u16)) / 16;
+	let blended_r = ((mixed_r * (16 - alpha as u32)) + (existing_r * alpha as u32)) / 16;
+	let blended_g = ((mixed_g * (16 - alpha as u32)) + (existing_g * alpha as u32)) / 16;
+	let blended_b = ((mixed_b * (16 - alpha as u32)) + (existing_b * alpha as u32)) / 16;
 
-	*pixel = (blended_r << 10) | (blended_g << 5) | blended_b;
+	*pixel = ((blended_r << 16) | (blended_g << 8) | blended_b) & 0xf8f8f8;
 }
 
-fn render_tile_4bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, width: usize, palette: &Option<PaletteWithOffset>,
-	blend: &Fn(&mut u16, u16)) {
+fn render_tile_4bit(render_buf: &mut [u32], tile_data: &[u8], left: usize, width: usize, palette: &Option<PaletteWithOffset>,
+	blend: &Fn(&mut u32, u32)) {
 	let palette_entries = match palette {
 		Some(pal_with_offset) => &pal_with_offset.palette.entries[pal_with_offset.offset..],
 		None => return
@@ -281,8 +282,8 @@ fn render_tile_4bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, width
 	}
 }
 
-fn render_tile_8bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, width: usize, palette: &Option<PaletteWithOffset>,
-	blend: &Fn(&mut u16, u16)) {
+fn render_tile_8bit(render_buf: &mut [u32], tile_data: &[u8], left: usize, width: usize, palette: &Option<PaletteWithOffset>,
+	blend: &Fn(&mut u32, u32)) {
 	let palette_entries = match palette {
 		Some(pal_with_offset) => &pal_with_offset.palette.entries[pal_with_offset.offset..],
 		None => return
@@ -297,21 +298,21 @@ fn render_tile_8bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, width
 	}
 }
 
-fn render_tile_16bit(render_buf: &mut [u16], tile_data: &[u8], left: usize, width: usize, _palette: &Option<PaletteWithOffset>,
-	blend: &Fn(&mut u16, u16)) {
+fn render_tile_16bit(render_buf: &mut [u32], tile_data: &[u8], left: usize, width: usize, _palette: &Option<PaletteWithOffset>,
+	blend: &Fn(&mut u32, u32)) {
 	for i in 0..width {
 		let x = left + i;
 		let color = LittleEndian::read_u16(&tile_data[x * 2 .. (x + 1) * 2]);
 		if (color & 0x8000) == 0 {
-			blend(&mut render_buf[i], color);
+			blend(&mut render_buf[i], Palette::convert_color(color));
 		}
 	}
 }
 
-fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>,
 	game: &GameState, layer: &MapLayer, scroll_x: isize, scroll_y: isize,
-	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16)),
-	blend: &Fn(&mut u16, u16)) {
+	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32)),
+	blend: &Fn(&mut u32, u32)) {
 	// Compute scrolling for this layer
 	let parallax_x = layer.parallax_x as isize;
 	let parallax_y = layer.parallax_y as isize;
@@ -408,9 +409,9 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	}
 }
 
-fn render_layer_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+fn render_layer_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>,
 	game: &GameState, scroll_x: isize, scroll_y: isize, layer: &MapLayer,
-	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
+	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32))) {
 	match layer.alpha {
 		0 => {
 			match layer.blend_mode {
@@ -447,7 +448,7 @@ fn render_layer_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	};
 }
 
-fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState,
+fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState,
 	scroll_x: isize, scroll_y: isize, layer: &MapLayer) {
 	match layer.tile_depth {
 		4 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_4bit),
@@ -457,10 +458,10 @@ fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: 
 	};
 }
 
-fn render_sprite_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>,
+fn render_sprite_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>,
 	x: isize, y: isize, animation: &SpriteAnimation, frame: usize,
-	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16)),
-	blend: &Fn(&mut u16, u16)) {
+	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32)),
+	blend: &Fn(&mut u32, u32)) {
 	if (x >= render_size.width as isize) || (y >= render_size.height as isize) ||
 		(x <= -(animation.width as isize)) || (y <= -(animation.height as isize)) {
 		return;
@@ -508,9 +509,9 @@ fn render_sprite_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Ve
 	}
 }
 
-fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: isize, y: isize,
+fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, x: isize, y: isize,
 	animation: &SpriteAnimation, frame: usize, blend_mode: &BlendMode, alpha: u8,
-	tile_renderer: &Fn(&mut [u16], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u16, u16))) {
+	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32))) {
 	match alpha {
 		0 => {
 			match blend_mode {
@@ -547,7 +548,7 @@ fn render_sprite_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Ve
 	};
 }
 
-fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: isize, y: isize,
+fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, x: isize, y: isize,
 	animation: &SpriteAnimation, frame: usize, blend_mode: &BlendMode, alpha: u8) {
 	match animation.depth {
 		4 => render_sprite_with_renderer(render_size, render_buf, x, y, animation, frame,
@@ -560,7 +561,7 @@ fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, x: is
 	};
 }
 
-pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u16>>, game: &GameState) {
+pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState) {
 	// Fill initial frame with map's background color
 	let background_color = game.map.background_color;
 	for y in 0..render_size.height {

@@ -35,7 +35,6 @@ struct RawTileSet {
 	pub anim: Option<Vec<usize>>
 }
 
-#[derive(Debug)]
 pub struct PaletteWithOffset {
 	pub palette: Rc<Palette>,
 	pub offset: usize
