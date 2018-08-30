@@ -36,12 +36,23 @@ struct RawMapLayerRef {
 }
 
 #[derive(Serialize, Deserialize)]
+struct RawActor {
+	pub x: isize,
+	pub y: isize,
+	pub width: Option<isize>,
+	pub height: Option<isize>,
+	pub type_name: String,
+	pub data: serde_json::Value
+}
+
+#[derive(Serialize, Deserialize)]
 struct RawMap {
 	pub name: String,
 	pub id: String,
 	pub background_color: u16,
 	pub layers: Vec<RawMapLayerRef>,
-	pub main_layer: isize
+	pub main_layer: isize,
+	pub actors: Vec<RawActor>
 }
 
 #[derive(Clone, Debug)]
@@ -78,12 +89,23 @@ pub struct MapLayer {
 }
 
 #[derive(Clone)]
+pub struct MapActor {
+	pub x: isize,
+	pub y: isize,
+	pub width: isize,
+	pub height: isize,
+	pub actor_type: String,
+	pub data: serde_json::Value
+}
+
+#[derive(Clone)]
 pub struct Map {
 	pub name: String,
 	pub id: String,
 	pub background_color: u32,
 	pub layers: Vec<Rc<MapLayer>>,
-	pub main_layer: Option<usize>
+	pub main_layer: Option<usize>,
+	pub actors: Vec<MapActor>
 }
 
 impl MapLayer {
@@ -421,7 +443,8 @@ impl Map {
 			id: asset::RUNTIME_ASSET.to_string(),
 			background_color: 0,
 			layers: Vec::new(),
-			main_layer: None
+			main_layer: None,
+			actors: Vec::new()
 		}
 	}
 
@@ -433,10 +456,10 @@ impl Map {
 			background_color: Palette::convert_color(raw_map.background_color),
 			layers: Vec::new(),
 			main_layer: match raw_map.main_layer {
-				-1 => None,
 				n if n < 0 => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid main layer")),
 				_ => Some(raw_map.main_layer as usize)
-			}
+			},
+			actors: Vec::new()
 		};
 
 		if let Some(main_layer) = map.main_layer {
@@ -467,6 +490,26 @@ impl Map {
 				}
 			};
 			map.layers.push(layer)
+		}
+
+		let tile_width = map.layers[map.main_layer.unwrap()].tile_width;
+		let tile_height = map.layers[map.main_layer.unwrap()].tile_height;
+
+		for raw_actor in raw_map.actors {
+			map.actors.push(MapActor {
+				x: raw_actor.x * tile_width as isize,
+				y: raw_actor.y * tile_height as isize,
+				width: match raw_actor.width {
+					Some(width) => width,
+					None => 1
+				},
+				height: match raw_actor.height {
+					Some(height) => height,
+					None => 1
+				},
+				actor_type: raw_actor.type_name,
+				data: raw_actor.data
+			});
 		}
 
 		Ok(Rc::new(map))

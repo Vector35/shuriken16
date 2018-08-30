@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell, Ref, RefMut};
+use std::any::Any;
 use sprite::{Sprite, SpriteAnimation};
 use game::GameState;
 use map::BlendMode;
@@ -40,6 +41,7 @@ pub struct ActorRef {
 pub trait Actor {
 	fn actor_info(&self) -> &ActorInfo;
 	fn actor_info_mut(&mut self) -> &mut ActorInfo;
+	fn as_any(&self) -> &Any;
 
 	fn update(&mut self, _game_state: &GameState) {}
 
@@ -76,18 +78,20 @@ pub trait Actor {
 			height: collision_height
 		};
 
-		if let Some(revised_x) = game_state.map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
-			new_x = revised_x - collision_x_offset;
-			full_x = new_x << 8;
-			actor_info.velocity_x = 0;
-		}
+		if let Some(map) = &game_state.map {
+			if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
+				new_x = revised_x - collision_x_offset;
+				full_x = new_x << 8;
+				actor_info.velocity_x = 0;
+			}
 
-		bounds.x = new_x + collision_x_offset;
+			bounds.x = new_x + collision_x_offset;
 
-		if let Some(revised_y) = game_state.map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
-			new_y = revised_y - collision_y_offset;
-			full_y = new_y << 8;
-			actor_info.velocity_y = 0;
+			if let Some(revised_y) = map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
+				new_y = revised_y - collision_y_offset;
+				full_y = new_y << 8;
+				actor_info.velocity_y = 0;
+			}
 		}
 
 		actor_info.x = full_x >> 8;

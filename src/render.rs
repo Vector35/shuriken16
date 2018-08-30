@@ -562,18 +562,28 @@ fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, x: is
 }
 
 pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState) {
-	// Fill initial frame with map's background color
-	let background_color = game.map.background_color;
-	for y in 0..render_size.height {
-		let row = &mut render_buf[y];
-		for x in 0..render_size.width {
-			row[x] = background_color;
+	if let Some(map) = &game.map {
+		// Fill initial frame with map's background color
+		let background_color = map.background_color;
+		for y in 0..render_size.height {
+			let row = &mut render_buf[y];
+			for x in 0..render_size.width {
+				row[x] = background_color;
+			}
 		}
-	}
 
-	// Render each map layer
-	for layer in &game.map.layers {
-		render_layer(render_size, render_buf, game, game.scroll_x, game.scroll_y, &layer);
+		// Render each map layer
+		for layer in &map.layers {
+			render_layer(render_size, render_buf, game, game.scroll_x, game.scroll_y, &layer);
+		}
+	} else {
+		// No map, fill with black
+		for y in 0..render_size.height {
+			let row = &mut render_buf[y];
+			for x in 0..render_size.width {
+				row[x] = 0;
+			}
+		}
 	}
 
 	for layer in &game.ui_layers {

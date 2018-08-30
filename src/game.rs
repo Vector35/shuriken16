@@ -18,7 +18,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use render;
 use render::{RenderSize, ResolutionTarget};
-use map::Map;
+use map::{Map, MapActor};
 use ui::UILayer;
 use actor::{Actor, ActorRef};
 use camera::Camera;
@@ -31,7 +31,7 @@ pub struct HatBindings {
 }
 
 pub struct GameState {
-	pub map: Map,
+	pub map: Option<Map>,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
 	pub actors: Vec<ActorRef>,
 	pub controlled_actor: Option<ActorRef>,
@@ -43,7 +43,8 @@ pub struct GameState {
 	pub key_bindings: HashMap<Keycode, String>,
 	pub axis_bindings: HashMap<u8, String>,
 	pub button_bindings: HashMap<u8, String>,
-	pub hat_bindings: HashMap<u8, HatBindings>
+	pub hat_bindings: HashMap<u8, HatBindings>,
+	pub actor_loaders: HashMap<String, Box<Fn(&MapActor) -> Option<Box<Actor>>>>
 }
 
 pub struct RenderState {
@@ -75,6 +76,27 @@ impl GameState {
 		let actor_ref = ActorRef::new(actor);
 		self.actors.push(actor_ref.clone());
 		actor_ref
+	}
+
+	pub fn register_actor_loader(&mut self, name: &str, handler: Box<Fn(&MapActor) -> Option<Box<Actor>>>) {
+		self.actor_loaders.insert(name.to_string(), handler);
+	}
+
+	pub fn load_map(&mut self, map: &Map) {
+		self.actors.clear();
+		self.map = Some(map.clone());
+		for actor in &map.actors {
+			if let Some(handler) = self.actor_loaders.get(&actor.actor_type) {
+				if let Some(actor) = handler(actor) {
+					self.actors.push(ActorRef::new(actor));
+				}
+			}
+		}
+	}
+
+	pub fn unload_map(&mut self) {
+		self.actors.clear();
+		self.map = None;
 	}
 
 	pub fn bind_key(&mut self, key: Keycode, button: &str) {
@@ -209,7 +231,7 @@ impl GameState {
 	}
 }
 
-fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderState) {
+fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
 	let mut screen_width = 1280;
 	let mut screen_height = 720;
 
@@ -252,7 +274,7 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 	let events = sdl.event_pump().unwrap();
 
 	let game = GameState {
-		map: map.clone(),
+		map: None,
 		ui_layers: Vec::new(),
 		actors: Vec::new(),
 		controlled_actor: None,
@@ -263,7 +285,8 @@ fn init(title: &str, target: ResolutionTarget, map: &Map) -> (GameState, RenderS
 		key_bindings: HashMap::new(),
 		axis_bindings: HashMap::new(),
 		button_bindings: HashMap::new(),
-		hat_bindings: HashMap::new()
+		hat_bindings: HashMap::new(),
+		actor_loaders: HashMap::new()
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -383,15 +406,15 @@ static mut GAME_STATE: Option<GameState> = None;
 static mut RENDER_STATE: Option<RenderState> = None;
 
 #[allow(unused_mut)] // Emscripten-only warning
-pub fn run(mut game: Box<Game>, map: &Map) {
+pub fn run(mut game: Box<Game>) {
 	let title = game.title();
 	let target = game.target_resolution();
 
 	// Initialize SDL and game state
 	#[cfg(target_os = "emscripten")]
-	let (game_state, render_state) = init(&title, target, map);
+	let (game_state, render_state) = init(&title, target);
 	#[cfg(not(target_os = "emscripten"))]
-	let (mut game_state, mut render_state) = init(&title, target, map);
+	let (mut game_state, mut render_state) = init(&title, target);
 
 	// For Emscripten target, store state in a global variable to avoid use of freed memory
 	#[cfg(target_os = "emscripten")]
