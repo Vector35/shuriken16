@@ -19,7 +19,7 @@ struct RawMapLayer {
 	pub tile_height: usize,
 	pub tile_depth: usize,
 	pub tile_sets: Vec<String>,
-	pub tiles: Vec<Vec<usize>>,
+	pub tiles: Vec<String>,
 	pub effect: bool,
 	pub blend: u32,
 	pub alpha: u8,
@@ -168,8 +168,8 @@ impl MapLayer {
 		}
 
 		// Check tile count for given width and height
-		if raw_map_layer.tiles.len() != (map_layer.width * map_layer.height) {
-			return Err(io::Error::new(io::ErrorKind::InvalidData, "Tile count does not match width and height"));
+		if raw_map_layer.tiles.len() != map_layer.height {
+			return Err(io::Error::new(io::ErrorKind::InvalidData, "Tile row count does not match height"));
 		}
 
 		// Resolve tile sets
@@ -192,20 +192,26 @@ impl MapLayer {
 		}
 
 		// Resolve individual tiles
-		for raw_tile in raw_map_layer.tiles {
-			let tile = match raw_tile.len() {
-				0 => None,
-				2 => {
-					let tile_set_index = raw_tile[0];
-					let tile_index = raw_tile[1];
-					if tile_set_index >= tile_sets.len() {
-						return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile set reference"));
-					}
-					Some(TileRef { tile_set: Rc::clone(&tile_sets[tile_set_index]), tile_index })
-				},
-				_ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile format"))
-			};
-			map_layer.tiles.push(tile)
+		for tile_row_str in raw_map_layer.tiles {
+			let raw_tile_row: Vec<Vec<usize>> = serde_json::from_str(&tile_row_str)?;
+			if raw_tile_row.len() != map_layer.width {
+				return Err(io::Error::new(io::ErrorKind::InvalidData, "Tile column count does not match width"));
+			}
+			for raw_tile in raw_tile_row {
+				let tile = match raw_tile.len() {
+					0 => None,
+					2 => {
+						let tile_set_index = raw_tile[0];
+						let tile_index = raw_tile[1];
+						if tile_set_index >= tile_sets.len() {
+							return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile set reference"));
+						}
+						Some(TileRef { tile_set: Rc::clone(&tile_sets[tile_set_index]), tile_index })
+					},
+					_ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile format"))
+				};
+				map_layer.tiles.push(tile)
+			}
 		}
 
 		Ok(Rc::new(map_layer))

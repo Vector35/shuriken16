@@ -354,15 +354,23 @@ Json::Value MapLayer::Serialize()
 	map["tile_sets"] = tileSets;
 
 	Json::Value tiles(Json::arrayValue);
-	for (auto& i : m_tiles)
+	for (size_t y = 0; y < m_height; y++)
 	{
-		Json::Value tile(Json::arrayValue);
-		if (i.tileSet)
+		Json::Value row(Json::arrayValue);
+		for (size_t x = 0; x < m_width; x++)
 		{
-			tile.append(tileSetIds[i.tileSet]);
-			tile.append(i.index);
+			Json::Value tile(Json::arrayValue);
+			TileReference ref = GetTileAt(x, y);
+			if (ref.tileSet)
+			{
+				tile.append(tileSetIds[ref.tileSet]);
+				tile.append(ref.index);
+			}
+			row.append(tile);
 		}
-		tiles.append(tile);
+		Json::FastWriter writer;
+		string rowStr = writer.write(row);
+		tiles.append(rowStr);
 	}
 	map["tiles"] = tiles;
 
@@ -401,19 +409,31 @@ shared_ptr<MapLayer> MapLayer::Deserialize(shared_ptr<Project> project, const Js
 	for (auto& i : data["tile_sets"])
 		tileSets.push_back(project->GetTileSetById(i.asString()));
 
-	size_t i = 0;
-	for (auto& j : data["tiles"])
+	size_t y = 0;
+	for (auto& rowStr : data["tiles"])
 	{
-		if (i >= result->m_tiles.size())
+		if (y >= height)
 			return shared_ptr<MapLayer>();
 
-		TileReference ref;
-		if ((j.size() == 2) && (j[0].asUInt64() < tileSets.size()))
+		Json::Reader reader;
+		Json::Value row;
+		if (!reader.parse(rowStr.asString(), row, false))
+			return shared_ptr<MapLayer>();
+
+		size_t x = 0;
+		for (auto& col : row)
 		{
-			ref.tileSet = tileSets[(size_t)j[0].asUInt64()];
-			ref.index = (uint16_t)j[1].asUInt();
+			TileReference ref;
+			if ((col.size() == 2) && (col[0].asUInt64() < tileSets.size()))
+			{
+				ref.tileSet = tileSets[(size_t)col[0].asUInt64()];
+				ref.index = (uint16_t)col[1].asUInt();
+			}
+			result->SetTileAt(x, y, ref);
+			x++;
 		}
-		result->m_tiles[i++] = ref;
+
+		y++;
 	}
 
 	return result;
