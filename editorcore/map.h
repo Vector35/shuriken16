@@ -8,6 +8,7 @@
 #include "json/json.h"
 
 class Project;
+class Actor;
 
 class Map
 {
@@ -15,6 +16,7 @@ class Map
 	std::vector<std::shared_ptr<MapLayer>> m_layers;
 	std::shared_ptr<MapLayer> m_mainLayer;
 	uint16_t m_backgroundColor;
+	std::vector<std::shared_ptr<Actor>> m_actors;
 	std::string m_id;
 
 public:
@@ -37,6 +39,11 @@ public:
 
 	uint16_t GetBackgroundColor() const { return m_backgroundColor; }
 	void SetBackgroundColor(uint16_t color) { m_backgroundColor = color; }
+
+	const std::vector<std::shared_ptr<Actor>>& GetActors() const { return m_actors; }
+	void AddActor(std::shared_ptr<Actor> actor);
+	void InsertActor(size_t i, std::shared_ptr<Actor> actor);
+	size_t RemoveActor(std::shared_ptr<Actor> actor);
 
 	bool UsesTileSet(std::shared_ptr<TileSet> tileSet);
 	bool UsesEffectLayer(std::shared_ptr<MapLayer> layer);

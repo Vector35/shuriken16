@@ -11,6 +11,7 @@
 class MainWindow;
 class MapLayerWidget;
 class MapTileWidget;
+class MapActorWidget;
 
 class MapEditorWidget: public QAbstractScrollArea
 {
@@ -35,6 +36,7 @@ class MapEditorWidget: public QAbstractScrollArea
 	MainWindow* m_mainWindow;
 	MapLayerWidget* m_layerWidget;
 	MapTileWidget* m_tileWidget;
+	MapActorWidget* m_actorWidget;
 	bool m_effectLayerEditor;
 	std::shared_ptr<Project> m_project;
 	std::shared_ptr<Map> m_map;
@@ -107,6 +109,7 @@ public:
 
 	void SetLayerWidget(MapLayerWidget* widget) { m_layerWidget = widget; }
 	void SetTileWidget(MapTileWidget* widget) { m_tileWidget = widget; }
+	void SetActorWidget(MapActorWidget* widget) { m_actorWidget = widget; }
 
 	bool IsFadeOtherLayersEnabled() const { return m_fadeOtherLayers; }
 	void SetFadeOtherLayersEnabled(bool enabled) { m_fadeOtherLayers = enabled; }

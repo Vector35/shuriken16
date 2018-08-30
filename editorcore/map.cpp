@@ -4,6 +4,7 @@
 #include <memory>
 #include "map.h"
 #include "project.h"
+#include "actor.h"
 
 using namespace std;
 
@@ -39,6 +40,9 @@ Map::Map(const Map& other)
 	}
 	if (!m_mainLayer)
 		m_mainLayer = make_shared<MapLayer>(*other.m_mainLayer);
+
+	for (auto& i : other.m_actors)
+		m_actors.push_back(make_shared<Actor>(*i));
 }
 
 
@@ -87,6 +91,34 @@ void Map::SwapLayers(size_t i, size_t j)
 	shared_ptr<MapLayer> layer = m_layers[i];
 	m_layers[i] = m_layers[j];
 	m_layers[j] = layer;
+}
+
+
+void Map::AddActor(shared_ptr<Actor> actor)
+{
+	m_actors.push_back(actor);
+}
+
+
+void Map::InsertActor(size_t i, shared_ptr<Actor> actor)
+{
+	if (i > m_actors.size())
+		i = m_actors.size();
+	m_actors.insert(m_actors.begin() + i, actor);
+}
+
+
+size_t Map::RemoveActor(shared_ptr<Actor> actor)
+{
+	for (size_t i = 0; i < m_actors.size(); i++)
+	{
+		if (m_actors[i] == actor)
+		{
+			m_actors.erase(m_actors.begin() + i);
+			return i;
+		}
+	}
+	return m_actors.size();
 }
 
 
@@ -143,6 +175,11 @@ Json::Value Map::Serialize()
 	map["layers"] = layers;
 	map["main_layer"] = mainLayer;
 
+	Json::Value actors(Json::arrayValue);
+	for (auto& j : m_actors)
+		actors.append(j->Serialize());
+	map["actors"] = actors;
+
 	return map;
 }
 
@@ -173,6 +210,13 @@ shared_ptr<Map> Map::Deserialize(shared_ptr<Project> project, const Json::Value&
 
 	if (!result->m_mainLayer)
 		return shared_ptr<Map>();
+
+	for (auto& j : data["actors"])
+	{
+		shared_ptr<Actor> actor = Actor::Deserialize(project, j);
+		if (actor)
+			result->m_actors.push_back(actor);
+	}
 
 	return result;
 }

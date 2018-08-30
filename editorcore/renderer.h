@@ -2,6 +2,7 @@
 
 #include "map.h"
 #include "mapfloatinglayer.h"
+#include "sprite.h"
 
 class Renderer
 {
@@ -22,6 +23,7 @@ class Renderer
 	void RenderPixel(uint16_t* pixels, int16_t x, int16_t y, uint16_t color,
 		BlendMode mode, uint8_t alpha);
 	void RenderMapLayer(uint16_t* pixels, std::shared_ptr<MapLayer> layer, bool forceNormalBlend = false);
+	void RenderSprite(uint16_t* pixels, int16_t x, int16_t y, std::shared_ptr<Sprite> sprite);
 	bool IsLayerVisible(std::shared_ptr<MapLayer> layer);
 
 public:

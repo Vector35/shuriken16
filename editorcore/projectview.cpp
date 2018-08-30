@@ -71,6 +71,20 @@ ProjectViewWidget::ProjectViewWidget(QWidget* parent, MainWindow* mainWindow):
 	layout->addLayout(m_tileSetLayout);
 	layout->addSpacing(16);
 
+	QHBoxLayout* actorTypeHeaderLayout = new QHBoxLayout();
+	QLabel* actorTypeLabel = new QLabel("Actor Types");
+	actorTypeLabel->setFont(headerFont);
+	actorTypeHeaderLayout->addWidget(actorTypeLabel, 1);
+
+	QPushButton* actorTypeAddButton = new QPushButton("New...");
+	actorTypeHeaderLayout->addWidget(actorTypeAddButton);
+
+	layout->addLayout(actorTypeHeaderLayout);
+
+	m_actorTypeLayout = new QVBoxLayout();
+	layout->addLayout(m_actorTypeLayout);
+	layout->addSpacing(16);
+
 	QHBoxLayout* effectLayerHeaderLayout = new QHBoxLayout();
 	QLabel* effectLayerLabel = new QLabel("Effect Layers");
 	effectLayerLabel->setFont(headerFont);
@@ -106,6 +120,7 @@ ProjectViewWidget::ProjectViewWidget(QWidget* parent, MainWindow* mainWindow):
 	connect(effectLayerAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddEffectLayer);
 	connect(mapAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddMap);
 	connect(spriteAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddSprite);
+	connect(actorTypeAddButton, &QPushButton::clicked, this, &ProjectViewWidget::AddActorType);
 }
 
 
@@ -609,6 +624,96 @@ void ProjectViewWidget::RemoveSprite(shared_ptr<Sprite> sprite)
 }
 
 
+void ProjectViewWidget::RenameActorType(shared_ptr<ActorType> actorType)
+{
+	string oldName = actorType->GetName();
+	string newName;
+	if (ChooseName(oldName, newName, "Rename", "Name:"))
+	{
+		if ((newName.size() == 0) || (!m_project->RenameActorType(actorType, newName)))
+		{
+			QMessageBox::critical(this, "Error", "New actor type name is invalid or already in use.");
+			return;
+		}
+		m_mainWindow->UpdateActorTypeName(actorType);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_project->RenameActorType(actorType, oldName);
+				m_mainWindow->UpdateActorTypeName(actorType);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->RenameActorType(actorType, newName);
+				m_mainWindow->UpdateActorTypeName(actorType);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::DuplicateActorType(shared_ptr<ActorType> actorType)
+{
+	string oldName = actorType->GetName();
+	string newName;
+	if (ChooseName(oldName, newName, "Duplicate", "Name of duplicated actor type:"))
+	{
+		shared_ptr<ActorType> newCopy = make_shared<ActorType>(*actorType);
+		newCopy->SetName(newName);
+		if ((newName.size() == 0) || (!m_project->AddActorType(newCopy)))
+		{
+			QMessageBox::critical(this, "Error", "New actor type name is invalid or already in use.");
+			return;
+		}
+		m_mainWindow->OpenActorType(newCopy);
+		m_mainWindow->UpdateActorTypeContents(newCopy);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_mainWindow->CloseActorType(newCopy);
+				m_project->DeleteActorType(newCopy);
+				m_mainWindow->UpdateActorTypeContents(newCopy);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->AddActorType(newCopy);
+				m_mainWindow->UpdateActorTypeContents(newCopy);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::RemoveActorType(shared_ptr<ActorType> actorType)
+{
+	if (QMessageBox::question(this, "Delete Actor Type", QString("Are you sure you want to remove the actor type '") +
+		QString::fromStdString(actorType->GetName()) + QString("'?"), QMessageBox::Yes,
+		QMessageBox::No | QMessageBox::Default | QMessageBox::Escape, QMessageBox::NoButton) !=
+		QMessageBox::Yes)
+		return;
+
+	m_mainWindow->CloseActorType(actorType);
+	m_project->DeleteActorType(actorType);
+	m_mainWindow->UpdateActorTypeContents(actorType);
+	m_mainWindow->AddUndoAction(
+		[=]() { // Undo
+			m_project->AddActorType(actorType);
+			m_mainWindow->UpdateActorTypeContents(actorType);
+			UpdateList();
+		},
+		[=]() { // Redo
+			m_mainWindow->CloseActorType(actorType);
+			m_project->DeleteActorType(actorType);
+			m_mainWindow->UpdateActorTypeContents(actorType);
+			UpdateList();
+		}
+	);
+	UpdateList();
+}
+
+
 void ProjectViewWidget::UpdateList()
 {
 	for (auto i : m_paletteItems)
@@ -636,12 +741,18 @@ void ProjectViewWidget::UpdateList()
 		m_spriteLayout->removeWidget(i);
 		i->deleteLater();
 	}
+	for (auto i : m_actorTypeItems)
+	{
+		m_actorTypeLayout->removeWidget(i);
+		i->deleteLater();
+	}
 
 	m_paletteItems.clear();
 	m_tileSetItems.clear();
 	m_effectLayerItems.clear();
 	m_mapItems.clear();
 	m_spriteItems.clear();
+	m_actorTypeItems.clear();
 
 	for (auto& i : m_project->GetPalettes())
 	{
@@ -707,12 +818,25 @@ void ProjectViewWidget::UpdateList()
 		m_spriteLayout->addWidget(item);
 		m_spriteItems.push_back(item);
 	}
+
+	for (auto& i : m_project->GetActorTypes())
+	{
+		shared_ptr<ActorType> actorType = i.second;
+		ProjectItemWidget* item = new ProjectItemWidget(this, i.first,
+			[=]() { m_mainWindow->OpenActorType(actorType); },
+			[=]() { RenameActorType(actorType); },
+			[=]() { DuplicateActorType(actorType); },
+			[=]() { RemoveActorType(actorType); }
+		);
+		m_actorTypeLayout->addWidget(item);
+		m_actorTypeItems.push_back(item);
+	}
 }
 
 
 QSize ProjectViewWidget::sizeHint() const
 {
-	return QSize(200, 100);
+	return QSize(230, 100);
 }
 
 
@@ -838,6 +962,46 @@ void ProjectViewWidget::AddSprite()
 			[=]() { // Redo
 				m_project->AddSprite(sprite);
 				m_mainWindow->UpdateSpriteContents(sprite);
+				UpdateList();
+			}
+		);
+		UpdateList();
+	}
+}
+
+
+void ProjectViewWidget::AddActorType()
+{
+	string name;
+	if (ChooseName("", name, "Create Actor Type", "Name:"))
+	{
+		if (name.size() == 0)
+		{
+			QMessageBox::critical(this, "Error", "Name must not be blank.");
+			return;
+		}
+
+		shared_ptr<ActorType> actorType = make_shared<ActorType>();
+		actorType->SetName(name);
+
+		if (!m_project->AddActorType(actorType))
+		{
+			QMessageBox::critical(this, "Error", "Actor type name is already used. Please choose a different name.");
+			return;
+		}
+
+		m_mainWindow->UpdateActorTypeContents(actorType);
+		m_mainWindow->OpenActorType(actorType);
+		m_mainWindow->AddUndoAction(
+			[=]() { // Undo
+				m_mainWindow->UpdateActorTypeContents(actorType);
+				m_mainWindow->CloseActorType(actorType);
+				m_project->DeleteActorType(actorType);
+				UpdateList();
+			},
+			[=]() { // Redo
+				m_project->AddActorType(actorType);
+				m_mainWindow->UpdateActorTypeContents(actorType);
 				UpdateList();
 			}
 		);

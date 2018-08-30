@@ -249,6 +249,49 @@ void Project::DeleteSprite(shared_ptr<Sprite> sprite)
 }
 
 
+shared_ptr<ActorType> Project::GetActorTypeByName(const string& name)
+{
+	auto i = m_actorTypes.find(name);
+	if (i == m_actorTypes.end())
+		return shared_ptr<ActorType>();
+	return i->second;
+}
+
+
+bool Project::AddActorType(shared_ptr<ActorType> actorType)
+{
+	string name = actorType->GetName();
+	auto i = m_actorTypes.find(name);
+	if (i != m_actorTypes.end())
+		return false;
+	assert(m_actorTypesById.find(actorType->GetId()) == m_actorTypesById.end());
+	m_actorTypes[name] = actorType;
+	m_actorTypesById[actorType->GetId()] = actorType;
+	return true;
+}
+
+
+bool Project::RenameActorType(shared_ptr<ActorType> actorType, const string& name)
+{
+	if (name == actorType->GetName())
+		return true;
+	auto i = m_actorTypes.find(name);
+	if (i != m_actorTypes.end())
+		return false;
+	m_actorTypes.erase(actorType->GetName());
+	actorType->SetName(name);
+	m_actorTypes[name] = actorType;
+	return true;
+}
+
+
+void Project::DeleteActorType(shared_ptr<ActorType> actorType)
+{
+	m_actorTypes.erase(actorType->GetName());
+	m_actorTypesById.erase(actorType->GetId());
+}
+
+
 vector<shared_ptr<TileSet>> Project::GetTileSetsUsingPalette(shared_ptr<Palette> palette)
 {
 	vector<shared_ptr<TileSet>> result;
@@ -429,6 +472,18 @@ bool Project::Save(const QString& path)
 	}
 	project["sprites"] = sprites;
 
+	Json::Value actorTypes(Json::arrayValue);
+	for (auto& i : m_actorTypesById)
+	{
+		QString name = GetFileName(i.second->GetName(), i.second->GetId(), ".s16actor");
+		actorTypes.append(name.toStdString());
+		files.insert(name);
+
+		if (!SaveProjectFile(path, name, i.second->Serialize()))
+			return false;
+	}
+	project["actor_types"] = actorTypes;
+
 	if (!SaveProjectFile(path, "manifest.json", project))
 		return false;
 	files.insert("manifest.json");
@@ -490,6 +545,8 @@ shared_ptr<Project> Project::Open(const QString& path)
 	project->m_mapsById.clear();
 	project->m_sprites.clear();
 	project->m_spritesById.clear();
+	project->m_actorTypes.clear();
+	project->m_actorTypesById.clear();
 
 	for (auto& i : manifest["palettes"])
 	{
@@ -584,37 +641,6 @@ shared_ptr<Project> Project::Open(const QString& path)
 		project->m_effectLayersById[layer->GetId()] = layer;
 	}
 
-	for (auto& i : manifest["maps"])
-	{
-		Json::Value data;
-		if (!ReadProjectFile(path, QString::fromStdString(i.asString()), data))
-		{
-			QMessageBox::critical(nullptr, "Error", QString("Unable to read map '") +
-				QString::fromStdString(i.asString()) + QString("'."));
-			return nullptr;
-		}
-
-		shared_ptr<Map> map = Map::Deserialize(project, data);
-		if (!map)
-		{
-			if (i.isMember("name"))
-			{
-				QMessageBox::critical(nullptr, "Error", QString("Map '") +
-					QString::fromStdString(i["name"].asString()) +
-					QString("' could not be read from project file."));
-			}
-			else
-			{
-				QMessageBox::critical(nullptr, "Error", QString("Map with missing name could not be read from "
-					"project file."));
-			}
-			return nullptr;
-		}
-
-		project->m_maps[map->GetName()] = map;
-		project->m_mapsById[map->GetId()] = map;
-	}
-
 	for (auto& i : manifest["sprites"])
 	{
 		Json::Value data;
@@ -644,6 +670,68 @@ shared_ptr<Project> Project::Open(const QString& path)
 
 		project->m_sprites[sprite->GetName()] = sprite;
 		project->m_spritesById[sprite->GetId()] = sprite;
+	}
+
+	for (auto& i : manifest["actor_types"])
+	{
+		Json::Value data;
+		if (!ReadProjectFile(path, QString::fromStdString(i.asString()), data))
+		{
+			QMessageBox::critical(nullptr, "Error", QString("Unable to read actor type '") +
+				QString::fromStdString(i.asString()) + QString("'."));
+			return nullptr;
+		}
+
+		shared_ptr<ActorType> actorType = ActorType::Deserialize(project, data);
+		if (!actorType)
+		{
+			if (i.isMember("name"))
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Actor type '") +
+					QString::fromStdString(i["name"].asString()) +
+					QString("' could not be read from project file."));
+			}
+			else
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Actor type with missing name could not be read from "
+					"project file."));
+			}
+			return nullptr;
+		}
+
+		project->m_actorTypes[actorType->GetName()] = actorType;
+		project->m_actorTypesById[actorType->GetId()] = actorType;
+	}
+
+	for (auto& i : manifest["maps"])
+	{
+		Json::Value data;
+		if (!ReadProjectFile(path, QString::fromStdString(i.asString()), data))
+		{
+			QMessageBox::critical(nullptr, "Error", QString("Unable to read map '") +
+				QString::fromStdString(i.asString()) + QString("'."));
+			return nullptr;
+		}
+
+		shared_ptr<Map> map = Map::Deserialize(project, data);
+		if (!map)
+		{
+			if (i.isMember("name"))
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Map '") +
+					QString::fromStdString(i["name"].asString()) +
+					QString("' could not be read from project file."));
+			}
+			else
+			{
+				QMessageBox::critical(nullptr, "Error", QString("Map with missing name could not be read from "
+					"project file."));
+			}
+			return nullptr;
+		}
+
+		project->m_maps[map->GetName()] = map;
+		project->m_mapsById[map->GetId()] = map;
 	}
 
 	return project;
@@ -691,5 +779,14 @@ shared_ptr<Sprite> Project::GetSpriteById(const string& id)
 	auto i = m_spritesById.find(id);
 	if (i == m_spritesById.end())
 		return shared_ptr<Sprite>();
+	return i->second;
+}
+
+
+shared_ptr<ActorType> Project::GetActorTypeById(const string& id)
+{
+	auto i = m_actorTypesById.find(id);
+	if (i == m_actorTypesById.end())
+		return shared_ptr<ActorType>();
 	return i->second;
 }

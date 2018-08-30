@@ -25,6 +25,7 @@ class TileSetView;
 class EffectLayerView;
 class MapView;
 class SpriteView;
+class ActorTypeView;
 
 class MainWindow: public QMainWindow
 {
@@ -58,6 +59,7 @@ class MainWindow: public QMainWindow
 	std::map<std::shared_ptr<MapLayer>, EffectLayerView*> m_openEffectLayers;
 	std::map<std::shared_ptr<Map>, MapView*> m_openMaps;
 	std::map<std::shared_ptr<Sprite>, SpriteView*> m_openSprites;
+	std::map<std::shared_ptr<ActorType>, ActorTypeView*> m_openActorTypes;
 
 	QString m_basePath;
 	QProcess* m_buildProcess = nullptr;
@@ -102,6 +104,12 @@ public:
 	void UpdateSpriteName(std::shared_ptr<Sprite> sprite);
 	void UpdateSpriteContents(std::shared_ptr<Sprite> sprite);
 	SpriteView* GetSpriteView(std::shared_ptr<Sprite> sprite);
+
+	void OpenActorType(std::shared_ptr<ActorType> actorType);
+	void CloseActorType(std::shared_ptr<ActorType> actorType);
+	void UpdateActorTypeName(std::shared_ptr<ActorType> actorType);
+	void UpdateActorTypeContents(std::shared_ptr<ActorType> actorType);
+	ActorTypeView* GetActorTypeView(std::shared_ptr<ActorType> actorType);
 
 	void AddUndoAction(const std::function<void()>& undoAction, const std::function<void()>& redoAction);
 

@@ -19,6 +19,7 @@ class MapView: public EditorView
 	MapEditorWidget* m_editor;
 	MapLayerWidget* m_layers;
 	MapTileWidget* m_tiles;
+	MapActorWidget* m_actors;
 	QLabel* m_mapSize;
 
 	MainWindow* m_mainWindow;
@@ -33,6 +34,7 @@ class MapView: public EditorView
 	ToolWidget* m_fillMode;
 	ToolWidget* m_zoomInMode;
 	ToolWidget* m_zoomOutMode;
+	ToolWidget* m_actorMode;
 
 	QTimer* m_deferredUpdateTimer;
 	std::chrono::steady_clock::time_point m_lastUpdate;

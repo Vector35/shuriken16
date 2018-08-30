@@ -5,6 +5,7 @@
 #include "mapview.h"
 #include "spriteview.h"
 #include "editorview.h"
+#include "actortypeview.h"
 #include <QMenu>
 #include <QMenuBar>
 #include <QFileDialog>
@@ -458,6 +459,11 @@ void MainWindow::UpdateSpriteContents(shared_ptr<Sprite> sprite)
 	{
 		i->second->UpdateView();
 	}
+
+	for (auto& i : m_openMaps)
+		i.second->UpdateView();
+	for (auto& i : m_openActorTypes)
+		i.second->UpdateView();
 }
 
 
@@ -465,6 +471,70 @@ SpriteView* MainWindow::GetSpriteView(std::shared_ptr<Sprite> sprite)
 {
 	auto i = m_openSprites.find(sprite);
 	if (i != m_openSprites.end())
+		return i->second;
+	return nullptr;
+}
+
+
+void MainWindow::OpenActorType(shared_ptr<ActorType> actorType)
+{
+	auto i = m_openActorTypes.find(actorType);
+	if (i != m_openActorTypes.end())
+	{
+		m_tabs->setCurrentWidget(i->second);
+		return;
+	}
+
+	ActorTypeView* editor = new ActorTypeView(this, m_project, actorType);
+	m_tabs->addTab(editor, QString::fromStdString(actorType->GetName()));
+	m_tabs->setCurrentWidget(editor);
+	m_openActorTypes[actorType] = editor;
+}
+
+
+void MainWindow::CloseActorType(shared_ptr<ActorType> actorType)
+{
+	auto i = m_openActorTypes.find(actorType);
+	if (i != m_openActorTypes.end())
+	{
+		int j = m_tabs->indexOf(i->second);
+		if (j != -1)
+		{
+			m_openActorTypes.erase(i);
+			m_tabs->removeTab(j);
+		}
+		return;
+	}
+}
+
+
+void MainWindow::UpdateActorTypeName(shared_ptr<ActorType> actorType)
+{
+	auto i = m_openActorTypes.find(actorType);
+	if (i != m_openActorTypes.end())
+	{
+		i->second->UpdateView();
+		int j = m_tabs->indexOf(i->second);
+		if (j != -1)
+			m_tabs->setTabText(j, QString::fromStdString(actorType->GetName()));
+	}
+}
+
+
+void MainWindow::UpdateActorTypeContents(shared_ptr<ActorType> actorType)
+{
+	auto i = m_openActorTypes.find(actorType);
+	if (i != m_openActorTypes.end())
+	{
+		i->second->UpdateView();
+	}
+}
+
+
+ActorTypeView* MainWindow::GetActorTypeView(std::shared_ptr<ActorType> actorType)
+{
+	auto i = m_openActorTypes.find(actorType);
+	if (i != m_openActorTypes.end())
 		return i->second;
 	return nullptr;
 }
@@ -756,6 +826,14 @@ void MainWindow::TabClose(int i)
 	if (spriteView)
 	{
 		m_openSprites.erase(spriteView->GetSprite());
+		m_tabs->removeTab(i);
+		return;
+	}
+
+	ActorTypeView* actorTypeView = dynamic_cast<ActorTypeView*>(widget);
+	if (actorTypeView)
+	{
+		m_openActorTypes.erase(actorTypeView->GetActorType());
 		m_tabs->removeTab(i);
 		return;
 	}

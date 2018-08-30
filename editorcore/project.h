@@ -8,6 +8,7 @@
 #include "tileset.h"
 #include "map.h"
 #include "sprite.h"
+#include "actortype.h"
 #include "json/json.h"
 
 class Project
@@ -17,12 +18,14 @@ class Project
 	std::map<std::string, std::shared_ptr<MapLayer>> m_effectLayers;
 	std::map<std::string, std::shared_ptr<Map>> m_maps;
 	std::map<std::string, std::shared_ptr<Sprite>> m_sprites;
+	std::map<std::string, std::shared_ptr<ActorType>> m_actorTypes;
 
 	std::map<std::string, std::shared_ptr<Palette>> m_palettesById;
 	std::map<std::string, std::shared_ptr<TileSet>> m_tileSetsById;
 	std::map<std::string, std::shared_ptr<MapLayer>> m_effectLayersById;
 	std::map<std::string, std::shared_ptr<Map>> m_mapsById;
 	std::map<std::string, std::shared_ptr<Sprite>> m_spritesById;
+	std::map<std::string, std::shared_ptr<ActorType>> m_actorTypesById;
 
 	QString GetFileName(const std::string& name, const std::string& id, const QString& ext);
 	bool SaveProjectFile(const QString& path, const QString& name, const Json::Value& value);
@@ -61,6 +64,12 @@ public:
 	bool RenameSprite(std::shared_ptr<Sprite> sprite, const std::string& name);
 	void DeleteSprite(std::shared_ptr<Sprite> sprite);
 
+	const std::map<std::string, std::shared_ptr<ActorType>>& GetActorTypes() const { return m_actorTypes; }
+	std::shared_ptr<ActorType> GetActorTypeByName(const std::string& name);
+	bool AddActorType(std::shared_ptr<ActorType> actorType);
+	bool RenameActorType(std::shared_ptr<ActorType> actorType, const std::string& name);
+	void DeleteActorType(std::shared_ptr<ActorType> actorType);
+
 	std::vector<std::shared_ptr<TileSet>> GetTileSetsUsingPalette(std::shared_ptr<Palette> palette);
 	std::vector<std::shared_ptr<Sprite>> GetSpritesUsingPalette(std::shared_ptr<Palette> palette);
 	std::vector<std::shared_ptr<MapLayer>> GetEffectLayersUsingTileSet(std::shared_ptr<TileSet> tileSet);
@@ -75,4 +84,5 @@ public:
 	std::shared_ptr<MapLayer> GetEffectLayerById(const std::string& id);
 	std::shared_ptr<Map> GetMapById(const std::string& id);
 	std::shared_ptr<Sprite> GetSpriteById(const std::string& id);
+	std::shared_ptr<ActorType> GetActorTypeById(const std::string& id);
 };

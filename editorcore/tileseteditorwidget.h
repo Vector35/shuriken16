@@ -17,7 +17,8 @@ enum EditorTool
 	FilledRectangleTool,
 	LineTool,
 	FillTool,
-	CollisionTool
+	CollisionTool,
+	ActorTool
 };
 
 class TileSetAnimationWidget;

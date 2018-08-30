@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "actor.h"
 
 using namespace std;
 
@@ -201,6 +202,61 @@ void Renderer::RenderMapLayer(uint16_t* pixels, shared_ptr<MapLayer> layer, bool
 }
 
 
+void Renderer::RenderSprite(uint16_t* pixels, int16_t x, int16_t y, shared_ptr<Sprite> sprite)
+{
+	shared_ptr<SpriteAnimation> animation = sprite->GetAnimation(0);
+	if (!animation)
+		return;
+	shared_ptr<Tile> tile = animation->GetTile();
+	if (!tile)
+		return;
+	shared_ptr<Palette> palette = tile->GetPalette();
+	const uint8_t* tileData = tile->GetData(0);
+
+	for (int16_t pixelY = 0; pixelY < (int16_t)tile->GetHeight(); pixelY++)
+	{
+		if (((y - m_scrollY) + pixelY) < 0)
+			continue;
+		if ((uint16_t)((y - m_scrollY) + pixelY) >= m_height)
+			break;
+
+		const uint8_t* tileDataRow = &tileData[pixelY * tile->GetPitch()];
+
+		for (int16_t pixelX = 0; pixelX < (int16_t)tile->GetWidth(); pixelX++)
+		{
+			if (((x - m_scrollX) + pixelX) < 0)
+				continue;
+			if ((uint16_t)((x - m_scrollX) + pixelX) >= m_width)
+				break;
+
+			uint16_t color = 0;
+			if (tile->GetDepth() == 4)
+			{
+				uint8_t colorIndex = (tileDataRow[pixelX / 2] >> (((pixelX) & 1) << 2)) & 0xf;
+				if (colorIndex == 0)
+					continue;
+				color = palette->GetEntry(tile->GetPaletteOffset() + colorIndex);
+			}
+			else if (tile->GetDepth() == 8)
+			{
+				uint8_t colorIndex = tileDataRow[pixelX];
+				if (colorIndex == 0)
+					continue;
+				color = palette->GetEntry(tile->GetPaletteOffset() + colorIndex);
+			}
+			else if (tile->GetDepth() == 16)
+			{
+				color = *(const uint16_t*)&tileDataRow[pixelX * 2];
+				if (color & 0x8000)
+					continue;
+			}
+
+			RenderPixel(pixels, (x - m_scrollX) + pixelX, (y - m_scrollY) + pixelY, color, BlendMode_Normal, 0);
+		}
+	}
+}
+
+
 bool Renderer::IsLayerVisible(shared_ptr<MapLayer> layer)
 {
 	auto i = m_visibility.find(layer);
@@ -220,6 +276,23 @@ void Renderer::Render()
 		if ((i != m_activeLayer) && !IsLayerVisible(i))
 			continue;
 		RenderMapLayer(m_pixels, i);
+	}
+
+	size_t tileWidth = m_map->GetMainLayer()->GetTileWidth();
+	size_t tileHeight = m_map->GetMainLayer()->GetTileHeight();
+
+	for (auto& i : m_map->GetActors())
+	{
+		shared_ptr<ActorType> type = i->GetType();
+		if (!type)
+			continue;
+		shared_ptr<Sprite> sprite = type->GetEditorSprite();
+		if (!sprite)
+			continue;
+
+		int16_t x = (int16_t)((i->GetX() * tileWidth) + ((i->GetWidth() * tileWidth) / 2) - (sprite->GetWidth() / 2));
+		int16_t y = (int16_t)((i->GetY() * tileHeight) + ((i->GetHeight() * tileHeight) / 2) - (sprite->GetHeight() / 2));
+		RenderSprite(m_pixels, x, y, sprite);
 	}
 }
 

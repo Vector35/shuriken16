@@ -39,6 +39,8 @@ SOURCES += \
 	maplayerwidget.cpp \
 	maplayeritemwidget.cpp \
 	maptilewidget.cpp \
+	mapactorwidget.cpp \
+	actoritemwidget.cpp \
 	tileselectwidget.cpp \
 	emptytilewidget.cpp \
 	effectlayersettingswidget.cpp \
@@ -56,6 +58,14 @@ SOURCES += \
 	spriteanimationheaderwidget.cpp \
 	spritepalettewidget.cpp \
 	animationsettingsdialog.cpp \
+	spriteselectwidget.cpp \
+	actor.cpp \
+	actortype.cpp \
+	actortypeview.cpp \
+	addactortypefielddialog.cpp \
+	stringfieldtype.cpp \
+	intfieldtype.cpp \
+	floatfieldtype.cpp \
 	json/jsoncpp.cpp
 
 HEADERS += \
@@ -89,6 +99,8 @@ HEADERS += \
 	maplayerwidget.h \
 	maplayeritemwidget.h \
 	maptilewidget.h \
+	mapactorwidget.h \
+	actoritemwidget.h \
 	tileselectwidget.h \
 	emptytilewidget.h \
 	effectlayersettingswidget.h \
@@ -106,4 +118,12 @@ HEADERS += \
 	spriteanimationheaderwidget.h \
 	spritepalettewidget.h \
 	animationsettingsdialog.h \
+	spriteselectwidget.h \
+	actor.h \
+	actortype.h \
+	actortypeview.h \
+	addactortypefielddialog.h \
+	stringfieldtype.h \
+	intfieldtype.h \
+	floatfieldtype.h \
 	json/json.h

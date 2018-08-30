@@ -13,6 +13,9 @@
 #endif
 #include "theme.h"
 #include "editor.h"
+#include "stringfieldtype.h"
+#include "intfieldtype.h"
+#include "floatfieldtype.h"
 
 
 QString GetRootPath()
@@ -85,6 +88,11 @@ void InitEditor()
 
 	// Ensure high DPI displays work properly
 	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+
+	// Register built-in field types for actors
+	StringFieldType::Register();
+	IntFieldType::Register();
+	FloatFieldType::Register();
 }
 
 

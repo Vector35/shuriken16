@@ -12,6 +12,7 @@
 #include "mapview.h"
 #include "theme.h"
 #include "mainwindow.h"
+#include "mapactorwidget.h"
 
 using namespace std;
 
@@ -63,6 +64,13 @@ MapView::MapView(MainWindow* parent, shared_ptr<Project> project, shared_ptr<Map
 		[=]() { m_editor->ZoomOut(); });
 	headerLayout->addWidget(m_zoomOutMode);
 
+	headerLayout->addSpacing(16);
+
+	m_actorMode = new ToolWidget("A", "Actor Editor",
+		[=]() { return m_editor->GetTool() == ActorTool; },
+		[=]() { m_editor->SetTool(ActorTool); UpdateToolState(); });
+	headerLayout->addWidget(m_actorMode);
+
 	m_mapSize = new QLabel();
 	headerLayout->addStretch(1);
 	headerLayout->addWidget(m_mapSize);
@@ -82,6 +90,10 @@ MapView::MapView(MainWindow* parent, shared_ptr<Project> project, shared_ptr<Map
 	m_tiles = new MapTileWidget(tiles, m_editor, parent, project, map);
 	m_editor->SetTileWidget(m_tiles);
 	tileLayout->addWidget(m_tiles);
+	m_actors = new MapActorWidget(tiles, m_editor, parent, project, map);
+	m_actors->setVisible(false);
+	m_editor->SetActorWidget(m_actors);
+	tileLayout->addWidget(m_actors);
 	tileLayout->addStretch(1);
 	tiles->setLayout(tileLayout);
 	tileScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -114,6 +126,7 @@ void MapView::UpdateToolState()
 	m_fillRectMode->UpdateState();
 	m_lineMode->UpdateState();
 	m_fillMode->UpdateState();
+	m_actorMode->UpdateState();
 }
 
 
@@ -129,6 +142,7 @@ void MapView::UpdateView()
 			(unsigned)m_map->GetMainLayer()->GetHeight()));
 		m_layers->UpdateView();
 		m_tiles->UpdateView();
+		m_actors->UpdateView();
 	}
 	else
 	{
@@ -147,6 +161,7 @@ void MapView::OnDeferredUpdateTimer()
 		(unsigned)m_map->GetMainLayer()->GetHeight()));
 	m_layers->UpdateView();
 	m_tiles->UpdateView();
+	m_actors->UpdateView();
 	m_lastUpdate = chrono::steady_clock::now();
 }
 

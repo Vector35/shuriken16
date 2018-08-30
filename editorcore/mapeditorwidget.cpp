@@ -12,6 +12,7 @@
 #include "effectlayerview.h"
 #include "theme.h"
 #include "mainwindow.h"
+#include "mapactorwidget.h"
 
 using namespace std;
 
@@ -44,6 +45,31 @@ MapEditorWidget::MapEditorWidget(QWidget* parent, MainWindow* mainWindow, shared
 
 void MapEditorWidget::UpdateView()
 {
+	if (m_tool == ActorTool)
+	{
+		m_actorWidget->setVisible(true);
+		m_tileWidget->setVisible(false);
+		if (m_floatingLayer)
+		{
+			m_actorWidget->SetSelection(m_floatingLayer->GetX(), m_floatingLayer->GetY(),
+				m_floatingLayer->GetWidth(), m_floatingLayer->GetHeight());
+		}
+		else if (m_selectionContents)
+		{
+			m_actorWidget->SetSelection(m_selectionContents->GetX(), m_selectionContents->GetY(),
+				m_selectionContents->GetWidth(), m_selectionContents->GetHeight());
+		}
+		else
+		{
+			m_actorWidget->ClearSelection();
+		}
+	}
+	else
+	{
+		m_actorWidget->setVisible(false);
+		m_tileWidget->setVisible(true);
+	}
+
 	int renderWidth = (viewport()->size().width() + (m_zoom - 1)) / m_zoom;
 	int renderHeight = (viewport()->size().height() + (m_zoom - 1)) / m_zoom;
 	if ((!m_image) || (renderWidth != m_renderWidth) || (renderHeight != m_renderHeight))
@@ -255,6 +281,22 @@ void MapEditorWidget::paintEvent(QPaintEvent*)
 			(m_selectionContents->GetY() * m_layer->GetTileHeight() - scrollY) * m_zoom,
 			m_selectionContents->GetWidth() * m_layer->GetTileWidth() * m_zoom,
 			m_selectionContents->GetHeight() * m_layer->GetTileHeight() * m_zoom);
+	}
+
+	if (m_actorWidget && m_actorWidget->isVisible())
+	{
+		shared_ptr<Actor> actor = m_actorWidget->GetSelectedActor();
+		shared_ptr<MapLayer> layer = m_map->GetMainLayer();
+		if (actor && layer && actor->GetType()->HasBounds())
+		{
+			p.setPen(QPen(QBrush(Theme::red), 2, Qt::DashDotLine));
+			size_t tileWidth = layer->GetTileWidth();
+			size_t tileHeight = layer->GetTileHeight();
+			p.drawRect((tileWidth * actor->GetX() - scrollX) * m_zoom + (m_zoom / 4),
+				(tileHeight * actor->GetY() - scrollY) * m_zoom + (m_zoom / 4),
+				(tileWidth * actor->GetWidth() * m_zoom) - m_zoom / 2,
+				(tileHeight * actor->GetHeight() * m_zoom) - m_zoom / 2);
+		}
 	}
 
 	if (m_showHover)
@@ -752,6 +794,17 @@ void MapEditorWidget::mousePressEvent(QMouseEvent* event)
 		CommitPendingActions();
 		break;
 
+	case ActorTool:
+		m_startX = ((event->x() / m_zoom) + horizontalScrollBar()->value()) / m_layer->GetTileWidth();
+		m_startY = ((event->y() / m_zoom) + verticalScrollBar()->value()) / m_layer->GetTileHeight();
+		m_selectionContents.reset();
+		m_underSelection.reset();
+		m_moveSelection = false;
+		m_waitForSelection = 0;
+		UpdateSelectionLayer(event);
+		UpdateView();
+		break;
+
 	default:
 		break;
 	}
@@ -937,6 +990,11 @@ void MapEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 		m_floatingLayer.reset();
 		break;
 
+	case ActorTool:
+		UpdateSelectionLayer(event);
+		UpdateView();
+		break;
+
 	default:
 		break;
 	}
@@ -985,6 +1043,10 @@ void MapEditorWidget::mouseMoveEvent(QMouseEvent* event)
 			UpdateLineLayer(event);
 			break;
 
+		case ActorTool:
+			UpdateSelectionLayer(event);
+			break;
+
 		default:
 			break;
 		}
@@ -1029,7 +1091,7 @@ void MapEditorWidget::SetTool(EditorTool tool)
 		m_underSelection.reset();
 	}
 
-	viewport()->update();
+	UpdateView();
 }
 
 
@@ -1055,6 +1117,8 @@ void MapEditorWidget::ZoomOut()
 
 bool MapEditorWidget::Cut()
 {
+	if (m_tool == ActorTool)
+		return false;
 	if (!m_selectionContents)
 		return false;
 	if (!Copy())
@@ -1233,6 +1297,9 @@ bool MapEditorWidget::Copy()
 
 bool MapEditorWidget::Paste()
 {
+	if (m_tool == ActorTool)
+		return false;
+
 	QClipboard* clipboard = QGuiApplication::clipboard();
 	QString text = clipboard->text();
 
