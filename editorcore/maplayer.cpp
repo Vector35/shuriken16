@@ -137,7 +137,9 @@ bool MapLayer::IsCompatibleForSmartTiles(size_t x, size_t y, const shared_ptr<Ti
 	if (y >= m_height)
 		return true;
 	TileReference ref = GetTileAt(x, y);
-	return ref.tileSet == tileSet;
+	if (!ref.tileSet)
+		return false;
+	return tileSet->IsCompatibleForSmartTiles(ref.tileSet);
 }
 
 

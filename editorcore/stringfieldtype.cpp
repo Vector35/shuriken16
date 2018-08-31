@@ -10,7 +10,8 @@ StringFieldEditorWidget::StringFieldEditorWidget(const shared_ptr<ActorFieldValu
 	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
 	m_text = new QLineEdit();
-	m_text->setText(QString::fromStdString(value->GetValue().asString()));
+	if (!value->GetValue().isNull())
+		m_text->setText(QString::fromStdString(value->GetValue().asString()));
 	layout->addWidget(m_text);
 	setLayout(layout);
 

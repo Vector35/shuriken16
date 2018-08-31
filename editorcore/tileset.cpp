@@ -181,6 +181,26 @@ bool TileSet::UsesPalette(shared_ptr<Palette> palette)
 }
 
 
+void TileSet::AddAssociatedTileSet(const shared_ptr<TileSet>& tileSet)
+{
+	m_associatedTileSets.insert(tileSet);
+}
+
+
+void TileSet::RemoveAssociatedTileSet(const shared_ptr<TileSet>& tileSet)
+{
+	m_associatedTileSets.erase(tileSet);
+}
+
+
+bool TileSet::IsCompatibleForSmartTiles(const shared_ptr<TileSet>& tileSet)
+{
+	if (tileSet.get() == this)
+		return true;
+	return m_associatedTileSets.count(tileSet) != 0;
+}
+
+
 Json::Value TileSet::Serialize()
 {
 	Json::Value tileSet(Json::objectValue);
@@ -210,6 +230,14 @@ Json::Value TileSet::Serialize()
 		tileSet["smart"] = "simplified_double_width";
 	default:
 		break;
+	}
+
+	if (m_associatedTileSets.size() != 0)
+	{
+		Json::Value associated(Json::arrayValue);
+		for (auto& i : m_associatedTileSets)
+			associated.append(i->GetId());
+		tileSet["associated"] = associated;
 	}
 
 	return tileSet;
@@ -249,7 +277,25 @@ shared_ptr<TileSet> TileSet::Deserialize(shared_ptr<Project> project, const Json
 	for (auto& i : data["tiles"])
 		result->m_tiles.push_back(Tile::Deserialize(project, i, width, height, depth, frames));
 
+	result->m_associatedTileSets.clear();
+	if (data.isMember("associated"))
+	{
+		for (auto& i : data["associated"])
+			result->m_initialAssociatedTileSetIds.insert(i.asString());
+	}
+
 	return result;
+}
+
+
+void TileSet::ResolveInitialAssociatedTileSets(const shared_ptr<Project>& project)
+{
+	for (auto& i : m_initialAssociatedTileSetIds)
+	{
+		shared_ptr<TileSet> tileSet = project->GetTileSetById(i);
+		if (tileSet)
+			m_associatedTileSets.insert(tileSet);
+	}
 }
 
 

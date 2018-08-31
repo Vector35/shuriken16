@@ -37,7 +37,7 @@ Json::Value Actor::GetFieldValue(const string& name)
 {
 	auto i = m_fields.find(name);
 	if (i == m_fields.end())
-		return Json::Value(Json::objectValue);
+		return Json::Value();
 	return i->second;
 }
 

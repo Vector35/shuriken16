@@ -9,6 +9,7 @@
 #include "tilesetpreviewwidget.h"
 #include "tilesetanimationwidget.h"
 #include "tilesetpalettewidget.h"
+#include "tilesetassociatedsetswidget.h"
 #include "toolwidget.h"
 #include "editorview.h"
 
@@ -23,6 +24,7 @@ class TileSetView: public EditorView
 	TileSetAnimationWidget* m_anim;
 	TileSetPaletteWidget* m_palettes;
 	TileSetPaletteWidget* m_activePalette;
+	TileSetAssociatedSetsWidget* m_associatedSets;
 	QLabel* m_colCount;
 	QLabel* m_tileCount;
 	QCheckBox* m_previewAnim;

@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::RefCell;
 use std::any::Any;
 use sprite::{Sprite, SpriteAnimation};
 use game::GameState;
@@ -15,6 +15,7 @@ pub struct SpriteWithOffset {
 	pub alpha: u8
 }
 
+#[derive(Debug)]
 pub struct BoundingRect {
 	pub x: isize,
 	pub y: isize,
@@ -33,19 +34,26 @@ pub struct ActorInfo {
 	pub sprites: Vec<SpriteWithOffset>
 }
 
-#[derive(Clone)]
-pub struct ActorRef {
-	actor: Rc<RefCell<Box<Actor>>>
+pub type ActorRef = Rc<RefCell<Box<Actor>>>;
+
+pub trait AsAny {
+	fn as_any(&self) -> &Any;
 }
 
-pub trait Actor {
+impl BoundingRect {
+	pub fn is_colliding(&self, other: &BoundingRect) -> bool {
+		(other.x < (self.x + self.width)) && (self.x < (other.x + other.width)) &&
+			(other.y < (self.y + self.height)) && (self.y < (other.y + other.height))
+	}
+}
+
+pub trait Actor: AsAny {
 	fn actor_info(&self) -> &ActorInfo;
 	fn actor_info_mut(&mut self) -> &mut ActorInfo;
-	fn as_any(&self) -> &Any;
 
 	fn update(&mut self, _game_state: &GameState) {}
 
-	fn apply_move(&mut self, game_state: &GameState) {
+	fn move_with_collision(&mut self, game_state: &GameState) -> bool {
 		let actor_info = self.actor_info_mut();
 		let mut full_x = (actor_info.x << 8) + actor_info.subpixel_x as isize;
 		let mut full_y = (actor_info.y << 8) + actor_info.subpixel_y as isize;
@@ -78,11 +86,13 @@ pub trait Actor {
 			height: collision_height
 		};
 
+		let mut collided_with_world = false;
 		if let Some(map) = &game_state.map {
 			if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
 				new_x = revised_x - collision_x_offset;
 				full_x = new_x << 8;
 				actor_info.velocity_x = 0;
+				collided_with_world = true;
 			}
 
 			bounds.x = new_x + collision_x_offset;
@@ -91,6 +101,7 @@ pub trait Actor {
 				new_y = revised_y - collision_y_offset;
 				full_y = new_y << 8;
 				actor_info.velocity_y = 0;
+				collided_with_world = true;
 			}
 		}
 
@@ -98,6 +109,62 @@ pub trait Actor {
 		actor_info.y = full_y >> 8;
 		actor_info.subpixel_x = (full_x & 0xff) as u8;
 		actor_info.subpixel_y = (full_y & 0xff) as u8;
+
+		collided_with_world
+	}
+
+	fn check_for_actor_collision(&mut self, game_state: &GameState) -> Vec<ActorRef> {
+		let actor_info = self.actor_info();
+		let mut collided_actors: Vec<ActorRef> = Vec::new();
+
+		if let Some(collision_bounds) = &actor_info.collision_bounds {
+			let collision_x_offset = collision_bounds.x;
+			let collision_y_offset = collision_bounds.y;
+			let collision_width = collision_bounds.width;
+			let collision_height = collision_bounds.height;
+
+			let mut bounds = BoundingRect {
+				x: actor_info.x + collision_x_offset,
+				y: actor_info.y + collision_y_offset,
+				width: collision_width,
+				height: collision_height
+			};
+
+			for actor_ref in &game_state.actors {
+				if let Ok(other_actor) = actor_ref.try_borrow() {
+					let other_actor_info = other_actor.actor_info();
+					if let Some(other_bounds) = &other_actor_info.collision_bounds {
+						let collision_x_offset = other_bounds.x;
+						let collision_y_offset = other_bounds.y;
+						let collision_width = other_bounds.width;
+						let collision_height = other_bounds.height;
+
+						let mut other_bounds = BoundingRect {
+							x: other_actor_info.x + collision_x_offset,
+							y: other_actor_info.y + collision_y_offset,
+							width: collision_width,
+							height: collision_height
+						};
+
+						if bounds.is_colliding(&other_bounds) {
+							collided_actors.push(actor_ref.clone());
+						}
+					}
+				}
+			}
+		}
+
+		collided_actors
+	}
+
+	fn apply_move(&mut self, game_state: &GameState) {
+		if self.move_with_collision(game_state) {
+			self.on_collide_with_world(game_state);
+		}
+
+		for actor in self.check_for_actor_collision(game_state) {
+			self.on_collide_with_actor(&actor, game_state);
+		}
 	}
 
 	fn tick(&mut self, game_state: &GameState) {
@@ -151,6 +218,9 @@ pub trait Actor {
 	fn on_button_down(&mut self, _name: &str) {}
 	fn on_button_up(&mut self, _name: &str) {}
 	fn on_axis_changed(&mut self, _name: &str, _value: f32) {}
+
+	fn on_collide_with_world(&mut self, _game_state: &GameState) {}
+	fn on_collide_with_actor(&mut self, _actor: &ActorRef, _game_state: &GameState) {}
 }
 
 impl ActorInfo {
@@ -167,18 +237,8 @@ impl ActorInfo {
 	}
 }
 
-impl ActorRef {
-	pub fn new(actor: Box<Actor>) -> ActorRef {
-		ActorRef {
-			actor: Rc::new(RefCell::new(actor))
-		}
-	}
-
-	pub fn borrow(&self) -> Ref<Box<Actor>> {
-		self.actor.borrow()
-	}
-
-	pub fn borrow_mut(&self) -> RefMut<Box<Actor>> {
-		self.actor.borrow_mut()
+impl<T: Actor + 'static> AsAny for T {
+	fn as_any(&self) -> &Any {
+		self
 	}
 }

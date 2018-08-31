@@ -142,6 +142,17 @@ TileSetView::TileSetView(MainWindow* parent, shared_ptr<Project> project, shared
 	m_anim = new TileSetAnimationWidget(animAndPalette, m_editor, parent, tileSet);
 	m_editor->SetAnimationWidget(m_anim);
 	animAndPaletteLayout->addWidget(m_anim);
+
+	if (m_tileSet->IsSmartTileSet())
+	{
+		m_associatedSets = new TileSetAssociatedSetsWidget(animAndPalette, parent, project, tileSet);
+		animAndPaletteLayout->addWidget(m_associatedSets);
+	}
+	else
+	{
+		m_associatedSets = nullptr;
+	}
+
 	m_palettes = new TileSetPaletteWidget(animAndPalette, this, parent, project, tileSet, false);
 	animAndPaletteLayout->addWidget(m_palettes);
 	animAndPaletteLayout->addStretch(1);
@@ -198,6 +209,9 @@ void TileSetView::UpdateView()
 		m_palettes->UpdateView();
 		m_activePalette->UpdateView();
 
+		if (m_associatedSets)
+			m_associatedSets->UpdateView();
+
 		if (m_tileSet->GetAnimation())
 			m_previewAnim->show();
 		else
@@ -224,6 +238,9 @@ void TileSetView::OnDeferredUpdateTimer()
 	m_anim->UpdateView();
 	m_palettes->UpdateView();
 	m_activePalette->UpdateView();
+
+	if (m_associatedSets)
+		m_associatedSets->UpdateView();
 
 	if (m_tileSet->GetAnimation())
 		m_previewAnim->show();

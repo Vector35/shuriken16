@@ -11,7 +11,8 @@ IntFieldEditorWidget::IntFieldEditorWidget(const shared_ptr<ActorFieldValue>& va
 	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
 	m_text = new QLineEdit();
-	m_text->setText(QString::number(value->GetValue().asInt64()));
+	if (!value->GetValue().isNull())
+		m_text->setText(QString::number(value->GetValue().asInt64()));
 	layout->addWidget(m_text);
 	setLayout(layout);
 

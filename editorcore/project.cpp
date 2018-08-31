@@ -610,6 +610,9 @@ shared_ptr<Project> Project::Open(const QString& path)
 		project->m_tileSetsById[tileSet->GetId()] = tileSet;
 	}
 
+	for (auto& i : project->m_tileSets)
+		i.second->ResolveInitialAssociatedTileSets(project);
+
 	for (auto& i : manifest["effect_layers"])
 	{
 		Json::Value data;

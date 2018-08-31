@@ -506,12 +506,12 @@ impl Map {
 				x: raw_actor.x * tile_width as isize,
 				y: raw_actor.y * tile_height as isize,
 				width: match raw_actor.width {
-					Some(width) => width,
-					None => 1
+					Some(width) => width * tile_width as isize,
+					None => tile_width as isize
 				},
 				height: match raw_actor.height {
-					Some(height) => height,
-					None => 1
+					Some(height) => height * tile_height as isize,
+					None => tile_height as isize
 				},
 				actor_type: raw_actor.type_name,
 				data: raw_actor.data

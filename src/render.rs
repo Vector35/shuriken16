@@ -561,7 +561,21 @@ fn render_sprite(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, x: is
 	};
 }
 
+pub fn render_actors(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState) {
+	for actor in &game.actors {
+		let actor_ref = actor.borrow();
+		let actor_info = actor_ref.actor_info();
+		for sprite in &actor_info.sprites {
+			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
+				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame,
+				&sprite.blend_mode, sprite.alpha);
+		}
+	}
+}
+
 pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState) {
+	let mut actors_rendered = false;
+
 	if let Some(map) = &game.map {
 		// Fill initial frame with map's background color
 		let background_color = map.background_color;
@@ -573,8 +587,15 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 		}
 
 		// Render each map layer
-		for layer in &map.layers {
+		for (i, layer) in (&map.layers).into_iter().enumerate() {
 			render_layer(render_size, render_buf, game, game.scroll_x, game.scroll_y, &layer);
+
+			if let Some(main_layer) = map.main_layer {
+				if i == main_layer {
+					render_actors(render_size, render_buf, game);
+					actors_rendered = true;
+				}
+			}
 		}
 	} else {
 		// No map, fill with black
@@ -584,6 +605,10 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 				row[x] = 0;
 			}
 		}
+	}
+
+	if !actors_rendered {
+		render_actors(render_size, render_buf, game);
 	}
 
 	for layer in &game.ui_layers {
@@ -597,15 +622,5 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 		let scroll_x = (render_size.width as isize - layer_width as isize) / 2;
 		let scroll_y = (render_size.height as isize - layer_height as isize) / 2;
 		render_layer(render_size, render_buf, game, scroll_x, scroll_y, map_layer);
-	}
-
-	for actor in &game.actors {
-		let actor_ref = actor.borrow();
-		let actor_info = actor_ref.actor_info();
-		for sprite in &actor_info.sprites {
-			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
-				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame,
-				&sprite.blend_mode, sprite.alpha);
-		}
 	}
 }

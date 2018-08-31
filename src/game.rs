@@ -73,7 +73,7 @@ impl GameState {
 	}
 
 	pub fn add_actor(&mut self, actor: Box<Actor>) -> ActorRef {
-		let actor_ref = ActorRef::new(actor);
+		let actor_ref = ActorRef::new(RefCell::new(actor));
 		self.actors.push(actor_ref.clone());
 		actor_ref
 	}
@@ -88,7 +88,7 @@ impl GameState {
 		for actor in &map.actors {
 			if let Some(handler) = self.actor_loaders.get(&actor.actor_type) {
 				if let Some(actor) = handler(actor) {
-					self.actors.push(ActorRef::new(actor));
+					self.actors.push(ActorRef::new(RefCell::new(actor)));
 				}
 			}
 		}

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <set>
 #include <inttypes.h>
 #include "tile.h"
 #include "animation.h"
@@ -25,6 +26,8 @@ class TileSet
 	std::shared_ptr<Animation> m_animation;
 	std::string m_id;
 	SmartTileSetType m_smartTileSetType;
+	std::set<std::shared_ptr<TileSet>> m_associatedTileSets;
+	std::set<std::string> m_initialAssociatedTileSetIds;
 
 public:
 	TileSet(size_t width, size_t height, size_t depth, SmartTileSetType smartTileSetType = NormalTileSet);
@@ -63,6 +66,12 @@ public:
 	std::shared_ptr<Tile> CreateTile();
 
 	bool UsesPalette(std::shared_ptr<Palette> palette);
+
+	const std::set<std::shared_ptr<TileSet>>& GetAssociatedTileSets() const { return m_associatedTileSets; }
+	void AddAssociatedTileSet(const std::shared_ptr<TileSet>& tileSet);
+	void RemoveAssociatedTileSet(const std::shared_ptr<TileSet>& tileSet);
+	bool IsCompatibleForSmartTiles(const std::shared_ptr<TileSet>& tileSet);
+	void ResolveInitialAssociatedTileSets(const std::shared_ptr<Project>& project);
 
 	const std::string& GetId() const { return m_id; }
 	Json::Value Serialize();

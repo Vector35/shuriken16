@@ -31,6 +31,8 @@ SOURCES += \
 	animationframewidget.cpp \
 	tilesetpalettewidget.cpp \
 	tilesetfloatinglayer.cpp \
+	tilesetassociatedsetswidget.cpp \
+	associatedtilesetitemwidget.cpp \
 	mapview.cpp \
 	effectlayerview.cpp \
 	mapeditorwidget.cpp \
@@ -91,6 +93,8 @@ HEADERS += \
 	animationframewidget.h \
 	tilesetpalettewidget.h \
 	tilesetfloatinglayer.h \
+	tilesetassociatedsetswidget.h \
+	associatedtilesetitemwidget.h \
 	mapview.h \
 	effectlayerview.h \
 	mapeditorwidget.h \
