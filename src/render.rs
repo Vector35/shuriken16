@@ -623,4 +623,21 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 		let scroll_y = (render_size.height as isize - layer_height as isize) / 2;
 		render_layer(render_size, render_buf, game, scroll_x, scroll_y, map_layer);
 	}
+
+	if game.fade_alpha > 0 {
+		// Full screen fade effect is in place
+		for y in 0..render_size.height {
+			let row = &mut render_buf[y];
+			for x in 0..render_size.width {
+				let color = row[x];
+				let r = (color >> 16) & 0xff;
+				let g = (color >> 8) & 0xff;
+				let b = color & 0xff;
+				let blended_r = (r * (16 - game.fade_alpha as u32)) / 16;
+				let blended_g = (g * (16 - game.fade_alpha as u32)) / 16;
+				let blended_b = (b * (16 - game.fade_alpha as u32)) / 16;
+				row[x] = ((blended_r << 16) | (blended_g << 8) | blended_b) & 0xf8f8f8;
+			}
+		}
+	}
 }

@@ -45,7 +45,9 @@ pub struct AddActorEvent {
 #[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
-	AddActor(AddActorEvent)
+	AddActor(AddActorEvent),
+	FadeOut,
+	FadeIn
 }
 
 pub struct GameState {
@@ -59,6 +61,8 @@ pub struct GameState {
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
+	pub fade_alpha: u8,
+	pub target_fade_alpha: u8,
 	pub frame: usize,
 	pub key_bindings: HashMap<Keycode, String>,
 	pub axis_bindings: HashMap<u8, String>,
@@ -84,6 +88,7 @@ pub trait Game {
 	fn init(&mut self, game_state: &mut GameState);
 	fn title(&self) -> String;
 	fn target_resolution(&self) -> ResolutionTarget;
+	fn fade_in_on_start(&self) -> bool { true }
 
 	fn tick(&mut self) {}
 }
@@ -134,6 +139,14 @@ impl GameState {
 	pub fn unload_map(&mut self) {
 		self.actors.clear();
 		self.map = None;
+	}
+
+	pub fn fade_out(&self) {
+		self.pending_events.borrow_mut().push(PendingEvent::FadeOut);
+	}
+
+	pub fn fade_in(&self) {
+		self.pending_events.borrow_mut().push(PendingEvent::FadeIn);
 	}
 
 	pub fn bind_key(&mut self, key: Keycode, button: &str) {
@@ -275,7 +288,7 @@ impl GameState {
 	}
 }
 
-fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
+fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, RenderState) {
 	let mut screen_width = 1280;
 	let mut screen_height = 720;
 
@@ -327,6 +340,11 @@ fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
 		camera: None,
 		render_size,
 		scroll_x: 0, scroll_y: 0,
+		fade_alpha: match game.fade_in_on_start() {
+			true => 16,
+			false => 0
+		},
+		target_fade_alpha: 0,
 		frame: 0,
 		key_bindings: HashMap::new(),
 		axis_bindings: HashMap::new(),
@@ -416,6 +434,12 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			},
 			PendingEvent::AddActor(add_actor) => {
 				game_state.actors.push(add_actor.actor);
+			},
+			PendingEvent::FadeIn => {
+				game_state.target_fade_alpha = 0;
+			},
+			PendingEvent::FadeOut => {
+				game_state.target_fade_alpha = 16;
 			}
 		};
 	}
@@ -440,6 +464,13 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	// Update camera state
 	if let Some(camera) = &mut game_state.camera {
 		camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
+	}
+
+	// Process fade animation
+	if game_state.fade_alpha < game_state.target_fade_alpha {
+		game_state.fade_alpha += 1;
+	} else if game_state.fade_alpha > game_state.target_fade_alpha {
+		game_state.fade_alpha -= 1;
 	}
 
 	// Render game at internal resolution
@@ -482,9 +513,9 @@ pub fn run(mut game: Box<Game>) {
 
 	// Initialize SDL and game state
 	#[cfg(target_os = "emscripten")]
-	let (game_state, render_state) = init(&title, target);
+	let (game_state, render_state) = init(&title, target, &game);
 	#[cfg(not(target_os = "emscripten"))]
-	let (mut game_state, mut render_state) = init(&title, target);
+	let (mut game_state, mut render_state) = init(&title, target, &game);
 
 	// For Emscripten target, store state in a global variable to avoid use of freed memory
 	#[cfg(target_os = "emscripten")]
