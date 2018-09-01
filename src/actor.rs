@@ -67,41 +67,36 @@ pub trait Actor: AsAny {
 		let collision_y_offset;
 		let collision_width;
 		let collision_height;
+		let mut collided_with_world = false;
 		if let Some(collision_bounds) = &actor_info.collision_bounds {
 			collision_x_offset = collision_bounds.x;
 			collision_y_offset = collision_bounds.y;
 			collision_width = collision_bounds.width;
 			collision_height = collision_bounds.height;
-		} else {
-			collision_x_offset = 0;
-			collision_y_offset = 0;
-			collision_width = 1;
-			collision_height = 1;
-		}
 
-		let mut bounds = BoundingRect {
-			x: actor_info.x + collision_x_offset,
-			y: actor_info.y + collision_y_offset,
-			width: collision_width,
-			height: collision_height
-		};
+			let mut bounds = BoundingRect {
+				x: actor_info.x + collision_x_offset,
+				y: actor_info.y + collision_y_offset,
+				width: collision_width,
+				height: collision_height
+			};
 
-		let mut collided_with_world = false;
-		if let Some(map) = &game_state.map {
-			if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
-				new_x = revised_x - collision_x_offset;
-				full_x = new_x << 8;
-				actor_info.velocity_x = 0;
-				collided_with_world = true;
-			}
+			if let Some(map) = &game_state.map {
+				if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
+					new_x = revised_x - collision_x_offset;
+					full_x = new_x << 8;
+					actor_info.velocity_x = 0;
+					collided_with_world = true;
+				}
 
-			bounds.x = new_x + collision_x_offset;
+				bounds.x = new_x + collision_x_offset;
 
-			if let Some(revised_y) = map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
-				new_y = revised_y - collision_y_offset;
-				full_y = new_y << 8;
-				actor_info.velocity_y = 0;
-				collided_with_world = true;
+				if let Some(revised_y) = map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
+					new_y = revised_y - collision_y_offset;
+					full_y = new_y << 8;
+					actor_info.velocity_y = 0;
+					collided_with_world = true;
+				}
 			}
 		}
 
@@ -214,6 +209,13 @@ pub trait Actor: AsAny {
 		let actor_info = self.actor_info_mut();
 		actor_info.collision_bounds = Some(bounds);
 	}
+
+	fn clear_collision_bounds(&mut self) {
+		let actor_info = self.actor_info_mut();
+		actor_info.collision_bounds = None;
+	}
+
+	fn get_camera_focus_offset(&self) -> (isize, isize) { (0, 0) }
 
 	fn on_button_down(&mut self, _name: &str) {}
 	fn on_button_up(&mut self, _name: &str) {}

@@ -368,7 +368,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	}
 
 	// Update camera state
-	if let Some(camera) = &game_state.camera {
+	if let Some(camera) = &mut game_state.camera {
 		camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
 	}
 
