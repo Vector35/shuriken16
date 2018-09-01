@@ -1,22 +1,37 @@
 #pragma once
 
 #include <QLineEdit>
+#include <QComboBox>
 #include "actortype.h"
 
-class FloatFieldEditorWidget: public QWidget
+class ChoiceFieldParameterEditorWidget: public QWidget
 {
 	std::shared_ptr<ActorFieldValue> m_value;
 	QLineEdit* m_text;
 
 public:
-	FloatFieldEditorWidget(const std::shared_ptr<ActorFieldValue>& value);
+	ChoiceFieldParameterEditorWidget(const std::shared_ptr<ActorFieldValue>& value);
 
 private slots:
 	void OnTextCommit();
 	void OnTextEdited(const QString& text);
 };
 
-class FloatFieldType: public ActorFieldType
+class ChoiceFieldInstanceEditorWidget: public QWidget
+{
+	std::shared_ptr<ActorFieldValue> m_value;
+	QStringList m_choices;
+	QComboBox* m_combo;
+
+public:
+	ChoiceFieldInstanceEditorWidget(const QStringList& choices,
+		const std::shared_ptr<ActorFieldValue>& value);
+
+private slots:
+	void OnValueChanged(int value);
+};
+
+class ChoiceFieldType: public ActorFieldType
 {
 public:
 	virtual std::string GetName() override;

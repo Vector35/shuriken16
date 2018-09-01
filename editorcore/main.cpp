@@ -16,6 +16,8 @@
 #include "stringfieldtype.h"
 #include "intfieldtype.h"
 #include "floatfieldtype.h"
+#include "choicefieldtype.h"
+#include "mapfieldtype.h"
 
 
 QString GetRootPath()
@@ -93,6 +95,8 @@ void InitEditor()
 	StringFieldType::Register();
 	IntFieldType::Register();
 	FloatFieldType::Register();
+	ChoiceFieldType::Register();
+	MapFieldType::Register();
 }
 
 

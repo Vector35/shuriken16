@@ -35,7 +35,8 @@ public:
 	virtual QWidget* CreateParameterEditor(MainWindow* mainWindow, const std::shared_ptr<Project>& project,
 		const std::shared_ptr<ActorFieldValue>& value) = 0;
 	virtual QWidget* CreateInstanceEditor(MainWindow* mainWindow, const std::shared_ptr<Project>& project,
-		const std::shared_ptr<Map>& map, const std::shared_ptr<ActorFieldValue>& value) = 0;
+		const std::shared_ptr<Map>& map, const Json::Value& params,
+		const std::shared_ptr<ActorFieldValue>& value) = 0;
 
 	static void Register(ActorFieldType* type);
 	static ActorFieldType* GetTypeForName(const std::string& name);

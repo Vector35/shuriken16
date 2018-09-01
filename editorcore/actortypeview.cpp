@@ -229,6 +229,7 @@ void ActorTypeEditorWidget::UpdateView()
 				ActorField newField = oldField;
 				newField.params = newValue;
 				actorType->SetField(i, newField);
+				mainWindow->UpdateActorTypeContents(actorType);
 
 				mainWindow->AddUndoAction(
 					[=]() { // Undo

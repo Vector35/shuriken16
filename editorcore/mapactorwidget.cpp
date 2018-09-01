@@ -203,7 +203,7 @@ void MapActorWidget::UpdateView()
 				);
 			});
 
-		QWidget* widget = i.type->CreateInstanceEditor(m_mainWindow, m_project, m_map, value);
+		QWidget* widget = i.type->CreateInstanceEditor(m_mainWindow, m_project, m_map, i.params, value);
 		if (widget)
 		{
 			m_entryLayout->addWidget(widget, row, 1);

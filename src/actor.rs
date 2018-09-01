@@ -51,6 +51,7 @@ pub trait Actor: AsAny {
 	fn actor_info(&self) -> &ActorInfo;
 	fn actor_info_mut(&mut self) -> &mut ActorInfo;
 
+	fn init(&mut self, _game_state: &GameState) {}
 	fn update(&mut self, _game_state: &GameState) {}
 
 	fn move_with_collision(&mut self, game_state: &GameState) -> bool {

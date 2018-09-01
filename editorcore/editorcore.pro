@@ -68,6 +68,8 @@ SOURCES += \
 	stringfieldtype.cpp \
 	intfieldtype.cpp \
 	floatfieldtype.cpp \
+	choicefieldtype.cpp \
+	mapfieldtype.cpp \
 	json/jsoncpp.cpp
 
 HEADERS += \
@@ -130,4 +132,6 @@ HEADERS += \
 	stringfieldtype.h \
 	intfieldtype.h \
 	floatfieldtype.h \
+	choicefieldtype.h \
+	mapfieldtype.h \
 	json/json.h

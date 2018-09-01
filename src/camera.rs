@@ -9,6 +9,7 @@ pub struct Camera {
 	pub follow_actor: Option<ActorRef>,
 	pub maximum_snap_dist: usize,
 	pub pan_time: usize,
+	pub force_snap: bool,
 	panning: bool,
 	pan_frame: usize,
 	pan_start_x: isize,
@@ -24,6 +25,7 @@ impl Camera {
 			map_bounds, follow_margin_ratio_x, follow_margin_ratio_y, follow_actor,
 			maximum_snap_dist: 2,
 			pan_time: 30,
+			force_snap: true,
 			panning: false,
 			pan_frame: 0,
 			pan_start_x: 0,
@@ -77,6 +79,14 @@ impl Camera {
 			} else {
 				target_scroll_y = self.map_bounds.y + self.map_bounds.height - render_size.height as isize;
 			}
+		}
+
+		if self.force_snap {
+			self.force_snap = false;
+			self.panning = false;
+			*scroll_x = target_scroll_x;
+			*scroll_y = target_scroll_y;
+			return;
 		}
 
 		if !self.panning {

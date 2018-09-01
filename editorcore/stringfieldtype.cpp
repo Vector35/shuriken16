@@ -9,9 +9,17 @@ StringFieldEditorWidget::StringFieldEditorWidget(const shared_ptr<ActorFieldValu
 {
 	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
+
 	m_text = new QLineEdit();
-	if (!value->GetValue().isNull())
-		m_text->setText(QString::fromStdString(value->GetValue().asString()));
+	try
+	{
+		if (!value->GetValue().isNull())
+			m_text->setText(QString::fromStdString(value->GetValue().asString()));
+	}
+	catch (Json::Exception)
+	{
+	}
+
 	layout->addWidget(m_text);
 	setLayout(layout);
 
@@ -26,9 +34,7 @@ StringFieldEditorWidget::StringFieldEditorWidget(const shared_ptr<ActorFieldValu
 
 void StringFieldEditorWidget::OnTextCommit()
 {
-	string value = m_text->text().toStdString();
-	if (value != m_value->GetValue().asString())
-		m_value->SetValue(value);
+	m_value->SetValue(m_text->text().toStdString());
 
 	QPalette style(m_text->palette());
 	style.setColor(QPalette::Text, Theme::content);
@@ -76,7 +82,7 @@ QWidget* StringFieldType::CreateParameterEditor(MainWindow*, const shared_ptr<Pr
 
 
 QWidget* StringFieldType::CreateInstanceEditor(MainWindow*, const shared_ptr<Project>&, const shared_ptr<Map>&,
-	const shared_ptr<ActorFieldValue>& value)
+	const Json::Value&, const shared_ptr<ActorFieldValue>& value)
 {
 	return new StringFieldEditorWidget(value);
 }

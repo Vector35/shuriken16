@@ -10,9 +10,17 @@ FloatFieldEditorWidget::FloatFieldEditorWidget(const shared_ptr<ActorFieldValue>
 {
 	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
+
 	m_text = new QLineEdit();
-	if (!value->GetValue().isNull())
-		m_text->setText(QString::number(value->GetValue().asDouble()));
+	try
+	{
+		if (!value->GetValue().isNull())
+			m_text->setText(QString::number(value->GetValue().asDouble()));
+	}
+	catch (Json::Exception)
+	{
+	}
+
 	layout->addWidget(m_text);
 	setLayout(layout);
 
@@ -31,8 +39,7 @@ void FloatFieldEditorWidget::OnTextCommit()
 	double value = m_text->text().toDouble(&ok);
 	if (!ok)
 		return;
-	if (value != m_value->GetValue().asDouble())
-		m_value->SetValue(value);
+	m_value->SetValue(value);
 
 	QPalette style(m_text->palette());
 	style.setColor(QPalette::Text, Theme::content);
@@ -80,7 +87,7 @@ QWidget* FloatFieldType::CreateParameterEditor(MainWindow*, const shared_ptr<Pro
 
 
 QWidget* FloatFieldType::CreateInstanceEditor(MainWindow*, const shared_ptr<Project>&, const shared_ptr<Map>&,
-	const shared_ptr<ActorFieldValue>& value)
+	const Json::Value&, const shared_ptr<ActorFieldValue>& value)
 {
 	return new FloatFieldEditorWidget(value);
 }

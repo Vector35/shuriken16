@@ -16,12 +16,14 @@ use self::byteorder::{ByteOrder, LittleEndian};
 use std::process;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::{Map, MapActor};
 use ui::UILayer;
 use actor::{Actor, ActorRef};
 use camera::Camera;
+use asset::AssetNamespace;
 
 pub struct HatBindings {
 	left: String,
@@ -30,10 +32,28 @@ pub struct HatBindings {
 	down: String
 }
 
+#[derive(Clone)]
+pub struct MapChangeEvent {
+	map: Rc<Map>
+}
+
+#[derive(Clone)]
+pub struct AddActorEvent {
+	actor: ActorRef
+}
+
+#[derive(Clone)]
+pub enum PendingEvent {
+	MapChange(MapChangeEvent),
+	AddActor(AddActorEvent)
+}
+
 pub struct GameState {
+	pub assets: AssetNamespace,
 	pub map: Option<Map>,
 	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
 	pub actors: Vec<ActorRef>,
+	pub persistent_actors: Vec<ActorRef>,
 	pub controlled_actor: Option<ActorRef>,
 	pub camera: Option<Camera>,
 	pub render_size: RenderSize,
@@ -44,7 +64,8 @@ pub struct GameState {
 	pub axis_bindings: HashMap<u8, String>,
 	pub button_bindings: HashMap<u8, String>,
 	pub hat_bindings: HashMap<u8, HatBindings>,
-	pub actor_loaders: HashMap<String, Box<Fn(&MapActor) -> Option<Box<Actor>>>>
+	pub actor_loaders: HashMap<String, Box<Fn(&MapActor, &AssetNamespace) -> Option<Box<Actor>>>>,
+	pub pending_events: RefCell<Vec<PendingEvent>>
 }
 
 pub struct RenderState {
@@ -72,26 +93,42 @@ impl GameState {
 		self.ui_layers.push(RefCell::new(layer));
 	}
 
-	pub fn add_actor(&mut self, actor: Box<Actor>) -> ActorRef {
+	pub fn add_actor(&self, actor: Box<Actor>) -> ActorRef {
 		let actor_ref = ActorRef::new(RefCell::new(actor));
-		self.actors.push(actor_ref.clone());
+		self.pending_events.borrow_mut().push(PendingEvent::AddActor(AddActorEvent {
+			actor: actor_ref.clone()
+		}));
 		actor_ref
 	}
 
-	pub fn register_actor_loader(&mut self, name: &str, handler: Box<Fn(&MapActor) -> Option<Box<Actor>>>) {
+	pub fn add_persistent_actor(&mut self, actor: Box<Actor>) -> ActorRef {
+		let actor_ref = ActorRef::new(RefCell::new(actor));
+		self.actors.push(actor_ref.clone());
+		self.persistent_actors.push(actor_ref.clone());
+		actor_ref
+	}
+
+	pub fn register_actor_loader(&mut self, name: &str,
+		handler: Box<Fn(&MapActor, &AssetNamespace) -> Option<Box<Actor>>>) {
 		self.actor_loaders.insert(name.to_string(), handler);
 	}
 
-	pub fn load_map(&mut self, map: &Map) {
+	fn load_map_now(&mut self, map: &Map) {
 		self.actors.clear();
 		self.map = Some(map.clone());
 		for actor in &map.actors {
 			if let Some(handler) = self.actor_loaders.get(&actor.actor_type) {
-				if let Some(actor) = handler(actor) {
+				if let Some(actor) = handler(actor, &self.assets) {
 					self.actors.push(ActorRef::new(RefCell::new(actor)));
 				}
 			}
 		}
+	}
+
+	pub fn load_map(&self, map: &Rc<Map>) {
+		self.pending_events.borrow_mut().push(PendingEvent::MapChange(MapChangeEvent {
+			map: map.clone(),
+		}));
 	}
 
 	pub fn unload_map(&mut self) {
@@ -229,6 +266,13 @@ impl GameState {
 			}
 		}
 	}
+
+	fn get_pending_events(&mut self) -> Vec<PendingEvent> {
+		let mut pending_events = self.pending_events.borrow_mut();
+		let result = pending_events.clone();
+		pending_events.clear();
+		result
+	}
 }
 
 fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
@@ -274,9 +318,11 @@ fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
 	let events = sdl.event_pump().unwrap();
 
 	let game = GameState {
+		assets: AssetNamespace::new(),
 		map: None,
 		ui_layers: Vec::new(),
 		actors: Vec::new(),
+		persistent_actors: Vec::new(),
 		controlled_actor: None,
 		camera: None,
 		render_size,
@@ -286,7 +332,8 @@ fn init(title: &str, target: ResolutionTarget) -> (GameState, RenderState) {
 		axis_bindings: HashMap::new(),
 		button_bindings: HashMap::new(),
 		hat_bindings: HashMap::new(),
-		actor_loaders: HashMap::new()
+		actor_loaders: HashMap::new(),
+		pending_events: RefCell::new(Vec::new())
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -348,6 +395,29 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 
 			_ => {}
 		}
+	}
+
+	// Handle events that were created by actor processing
+	let event_list = game_state.get_pending_events();
+	for event in event_list {
+		match event {
+			PendingEvent::MapChange(map_change) => {
+				game_state.load_map_now(&map_change.map);
+				for actor in &game_state.persistent_actors {
+					game_state.actors.push(actor.clone());
+				}
+				for actor_ref in &game_state.actors {
+					let mut actor = actor_ref.borrow_mut();
+					actor.init(&game_state);
+				}
+				if let Some(camera) = &mut game_state.camera {
+					camera.force_snap = true;
+				}
+			},
+			PendingEvent::AddActor(add_actor) => {
+				game_state.actors.push(add_actor.actor);
+			}
+		};
 	}
 
 	game.tick();

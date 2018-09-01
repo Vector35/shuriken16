@@ -19,8 +19,11 @@ ActorFieldValue::ActorFieldValue(const Json::Value& currentValue,
 void ActorFieldValue::SetValue(const Json::Value& value)
 {
 	Json::Value oldValue = m_value;
-	m_value = value;
-	m_valueChangedFunc(oldValue, value);
+	if (m_value != value)
+	{
+		m_value = value;
+		m_valueChangedFunc(oldValue, value);
+	}
 }
 
 

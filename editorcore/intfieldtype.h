@@ -26,7 +26,8 @@ public:
 	virtual QWidget* CreateParameterEditor(MainWindow* mainWindow, const std::shared_ptr<Project>& project,
 		const std::shared_ptr<ActorFieldValue>& value) override;
 	virtual QWidget* CreateInstanceEditor(MainWindow* mainWindow, const std::shared_ptr<Project>& project,
-		const std::shared_ptr<Map>& map, const std::shared_ptr<ActorFieldValue>& value) override;
+		const std::shared_ptr<Map>& map, const Json::Value& params,
+		const std::shared_ptr<ActorFieldValue>& value) override;
 
 	static void Register();
 };

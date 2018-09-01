@@ -10,9 +10,17 @@ IntFieldEditorWidget::IntFieldEditorWidget(const shared_ptr<ActorFieldValue>& va
 {
 	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
+
 	m_text = new QLineEdit();
-	if (!value->GetValue().isNull())
-		m_text->setText(QString::number(value->GetValue().asInt64()));
+	try
+	{
+		if (!value->GetValue().isNull())
+			m_text->setText(QString::number(value->GetValue().asInt64()));
+	}
+	catch (Json::Exception)
+	{
+	}
+
 	layout->addWidget(m_text);
 	setLayout(layout);
 
@@ -31,8 +39,7 @@ void IntFieldEditorWidget::OnTextCommit()
 	int64_t value = m_text->text().toLongLong(&ok, 0);
 	if (!ok)
 		return;
-	if (value != m_value->GetValue().asInt64())
-		m_value->SetValue(value);
+	m_value->SetValue(value);
 
 	QPalette style(m_text->palette());
 	style.setColor(QPalette::Text, Theme::content);
@@ -80,7 +87,7 @@ QWidget* IntFieldType::CreateParameterEditor(MainWindow*, const shared_ptr<Proje
 
 
 QWidget* IntFieldType::CreateInstanceEditor(MainWindow*, const shared_ptr<Project>&, const shared_ptr<Map>&,
-	const shared_ptr<ActorFieldValue>& value)
+	const Json::Value&, const shared_ptr<ActorFieldValue>& value)
 {
 	return new IntFieldEditorWidget(value);
 }

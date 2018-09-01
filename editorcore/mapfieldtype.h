@@ -1,22 +1,25 @@
 #pragma once
 
 #include <QLineEdit>
+#include <QComboBox>
 #include "actortype.h"
+#include "map.h"
 
-class FloatFieldEditorWidget: public QWidget
+class MapFieldEditorWidget: public QWidget
 {
 	std::shared_ptr<ActorFieldValue> m_value;
-	QLineEdit* m_text;
+	std::vector<std::shared_ptr<Map>> m_maps;
+	QComboBox* m_combo;
 
 public:
-	FloatFieldEditorWidget(const std::shared_ptr<ActorFieldValue>& value);
+	MapFieldEditorWidget(const std::shared_ptr<Project>& project,
+		const std::shared_ptr<ActorFieldValue>& value);
 
 private slots:
-	void OnTextCommit();
-	void OnTextEdited(const QString& text);
+	void OnValueChanged(int value);
 };
 
-class FloatFieldType: public ActorFieldType
+class MapFieldType: public ActorFieldType
 {
 public:
 	virtual std::string GetName() override;
