@@ -104,18 +104,31 @@ impl Camera {
 		if self.panning {
 			let dist = (target_scroll_x - self.pan_target_x).abs() + (target_scroll_y - self.pan_target_y).abs();
 			if dist as usize > self.maximum_snap_dist {
-				self.panning = true;
-				self.pan_frame = 0;
-				self.pan_start_x = cur_x;
-				self.pan_start_y = cur_y;
+				// If moving fast while panning, try to keep camera at fastest movement speed, which is halfway
+				// in the animation cycle
+				let target_pan_frame = self.pan_time / 2;
+				if self.pan_frame >= target_pan_frame {
+					// Past target animation frame, move backwards and solve for the start position that would
+					// leave the camera at its current location
+					if self.pan_frame == target_pan_frame {
+						self.pan_frame -= 1;
+					} else {
+						self.pan_frame -= 2;
+					}
+
+					let frac = ((self.pan_frame as f32 / self.pan_time as f32) * PI + PI).cos() * 0.5 + 0.5;
+					self.pan_start_x = ((*scroll_x as f32 - (target_scroll_x as f32 * frac)) / (1.0 - frac) + 0.5) as isize;
+					self.pan_start_y = ((*scroll_y as f32 - (target_scroll_y as f32 * frac)) / (1.0 - frac) + 0.5) as isize;
+				}
 			}
+
 			self.pan_target_x = target_scroll_x;
 			self.pan_target_y = target_scroll_y;
 
 			self.pan_frame += 1;
 			let frac = ((self.pan_frame as f32 / self.pan_time as f32) * PI + PI).cos() * 0.5 + 0.5;
-			*scroll_x = ((target_scroll_x as f32 * frac) + (self.pan_start_x as f32 * (1.0 - frac))) as isize;
-			*scroll_y = ((target_scroll_y as f32 * frac) + (self.pan_start_y as f32 * (1.0 - frac))) as isize;
+			*scroll_x = ((target_scroll_x as f32 * frac) + (self.pan_start_x as f32 * (1.0 - frac)) + 0.5) as isize;
+			*scroll_y = ((target_scroll_y as f32 * frac) + (self.pan_start_y as f32 * (1.0 - frac)) + 0.5) as isize;
 
 			if self.pan_frame >= self.pan_time {
 				self.panning = false;
