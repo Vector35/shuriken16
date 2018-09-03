@@ -214,6 +214,28 @@ pub trait Actor: AsAny {
 		}
 	}
 
+	fn get_sprite_alpha(&mut self, sprite_index: usize) -> u8 {
+		let actor_info = self.actor_info_mut();
+		if sprite_index < actor_info.sprites.len() {
+			actor_info.sprites[sprite_index].alpha
+		} else {
+			0
+		}
+	}
+
+	fn adjust_sprite_alpha(&mut self, sprite_index: usize, change: i8) {
+		let mut alpha = self.get_sprite_alpha(sprite_index);
+		if change > 0 {
+			alpha = alpha.saturating_add(change as u8);
+			if alpha > 16 {
+				alpha = 16;
+			}
+		} else if change < 0 {
+			alpha = alpha.saturating_sub((-change) as u8);
+		}
+		self.set_sprite_alpha(sprite_index, alpha);
+	}
+
 	fn start_animation(&mut self, name: &str) {
 		let actor_info = self.actor_info_mut();
 		for sprite in &mut actor_info.sprites {
