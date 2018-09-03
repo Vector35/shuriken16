@@ -455,11 +455,20 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 		}
 	}
 
-	// Tick actors
+	// Tick actors, and keep a list of non-destroyed actors to replace the
+	// actor list with afterwards
+	let mut new_actor_list: Vec<ActorRef> = Vec::new();
 	for actor in &game_state.actors {
 		let mut actor_ref = actor.borrow_mut();
+		if actor_ref.is_destroyed() {
+			continue;
+		}
+		new_actor_list.push(actor.clone());
 		actor_ref.tick(game_state);
 	}
+
+	// Replace actor list with destroyed actors removed
+	game_state.actors = new_actor_list;
 
 	// Update camera state
 	if let Some(camera) = &mut game_state.camera {

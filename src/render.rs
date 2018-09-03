@@ -247,14 +247,14 @@ fn multiply_blend(pixel: &mut u32, color: u32) {
 }
 
 fn alpha_blend(pixel: &mut u32, color: u32, alpha: u8, blend: &Fn(&mut u32, u32)) {
-	let mut mixed_color = color;
+	let existing_color = *pixel;
+	let mut mixed_color = existing_color;
 	blend(&mut mixed_color, color);
 
 	let mixed_r = (mixed_color >> 16) & 0xff;
 	let mixed_g = (mixed_color >> 8) & 0xff;
 	let mixed_b = mixed_color & 0xff;
 
-	let existing_color = *pixel;
 	let existing_r = (existing_color >> 16) & 0xff;
 	let existing_g = (existing_color >> 8) & 0xff;
 	let existing_b = existing_color & 0xff;
@@ -565,10 +565,14 @@ pub fn render_actors(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, g
 	for actor in &game.actors {
 		let actor_ref = actor.borrow();
 		let actor_info = actor_ref.actor_info();
-		for sprite in &actor_info.sprites {
-			render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
-				actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame,
-				&sprite.blend_mode, sprite.alpha);
+		if !actor_info.destroyed {
+			for sprite in &actor_info.sprites {
+				if sprite.alpha < 16 {
+					render_sprite(render_size, render_buf, actor_info.x + sprite.x_offset - game.scroll_x,
+						actor_info.y + sprite.y_offset - game.scroll_y, &sprite.animation, sprite.animation_frame,
+						&sprite.blend_mode, sprite.alpha);
+				}
+			}
 		}
 	}
 }

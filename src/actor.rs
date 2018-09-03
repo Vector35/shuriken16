@@ -31,7 +31,8 @@ pub struct ActorInfo {
 	pub velocity_x: isize,
 	pub velocity_y: isize,
 	pub collision_bounds: Option<BoundingRect>,
-	pub sprites: Vec<SpriteWithOffset>
+	pub sprites: Vec<SpriteWithOffset>,
+	pub destroyed: bool
 }
 
 pub type ActorRef = Rc<RefCell<Box<Actor>>>;
@@ -53,6 +54,14 @@ pub trait Actor: AsAny {
 
 	fn init(&mut self, _game_state: &GameState) {}
 	fn update(&mut self, _game_state: &GameState) {}
+
+	fn destroy(&mut self) {
+		self.actor_info_mut().destroyed = true;
+	}
+
+	fn is_destroyed(&self) -> bool {
+		self.actor_info().destroyed
+	}
 
 	fn move_with_collision(&mut self, game_state: &GameState) -> bool {
 		let actor_info = self.actor_info_mut();
@@ -168,9 +177,10 @@ pub trait Actor: AsAny {
 		self.apply_move(game_state);
 	}
 
-	fn add_sprite(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize) {
+	fn add_sprite(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize) -> usize {
 		let actor_info = self.actor_info_mut();
 		let animation = sprite.get_default_animation();
+		let index = actor_info.sprites.len();
 		actor_info.sprites.push(SpriteWithOffset {
 			sprite,
 			animation,
@@ -179,12 +189,14 @@ pub trait Actor: AsAny {
 			blend_mode: BlendMode::Normal,
 			alpha: 0
 		});
+		index
 	}
 
 	fn add_sprite_with_blending(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize,
-		blend_mode: BlendMode, alpha: u8) {
+		blend_mode: BlendMode, alpha: u8) -> usize {
 		let actor_info = self.actor_info_mut();
 		let animation = sprite.get_default_animation();
+		let index = actor_info.sprites.len();
 		actor_info.sprites.push(SpriteWithOffset {
 			sprite,
 			animation,
@@ -192,6 +204,14 @@ pub trait Actor: AsAny {
 			x_offset, y_offset,
 			blend_mode, alpha
 		});
+		index
+	}
+
+	fn set_sprite_alpha(&mut self, sprite_index: usize, alpha: u8) {
+		let actor_info = self.actor_info_mut();
+		if sprite_index < actor_info.sprites.len() {
+			actor_info.sprites[sprite_index].alpha = alpha;
+		}
 	}
 
 	fn start_animation(&mut self, name: &str) {
@@ -235,7 +255,8 @@ impl ActorInfo {
 			velocity_x: 0,
 			velocity_y: 0,
 			collision_bounds: None,
-			sprites: Vec::new()
+			sprites: Vec::new(),
+			destroyed: false
 		}
 	}
 }
