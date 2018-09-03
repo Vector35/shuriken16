@@ -65,7 +65,7 @@ impl SpriteAnimation {
 	pub fn frame_for_time(&self, t: usize) -> usize {
 		if self.looping {
 			self.animation.frame_for_time[t % self.animation.total_length]
-		} else if t < self.animation.total_length {
+		} else if t >= self.animation.total_length {
 			*self.animation.frame_for_time.last().unwrap()
 		} else {
 			self.animation.frame_for_time[t]
