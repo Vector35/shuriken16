@@ -7,9 +7,10 @@ use self::byteorder::{ByteOrder, LittleEndian};
 use game::GameState;
 use map::{MapLayer, BlendMode};
 use tile::{TileSet, PaletteWithOffset};
-use ui::{TextLayerRenderer, TextLayer, TextLayerContents, UILayer};
+use ui::{UILayerRenderer, UILayerContents, UILayer};
 use sprite::SpriteAnimation;
 use palette::Palette;
+use actor::BoundingRect;
 
 #[derive(Debug)]
 pub enum ResolutionTargetMode {
@@ -132,15 +133,16 @@ impl FrameRateTextRenderer {
 		}
 	}
 
-	pub fn new_ui_layer(font_tile_set: Rc<TileSet>, font_base: u8) -> Box<UILayer> {
-		let mut layer = TextLayer::new(font_tile_set, font_base);
+	pub fn new_ui_layer(font_tile_set: Rc<TileSet>, font_base: u8) -> UILayer {
+		let mut layer = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
+		layer.set_font(font_tile_set, font_base);
 		layer.renderer = Some(Box::new(FrameRateTextRenderer::new()));
-		Box::new(layer)
+		layer
 	}
 }
 
-impl TextLayerRenderer for FrameRateTextRenderer {
-	fn update(&mut self, layer: &mut TextLayerContents, game_state: &GameState) {
+impl UILayerRenderer for FrameRateTextRenderer {
+	fn update(&mut self, layer: &mut UILayerContents, game_state: &GameState) {
 		let elapsed_time = self.start_time.elapsed();
 		let elapsed_secs = elapsed_time.as_secs();
 		if elapsed_secs != self.last_elapsed_secs {
@@ -151,7 +153,7 @@ impl TextLayerRenderer for FrameRateTextRenderer {
 
 		layer.clear();
 		let text = format!("{} FPS", self.frame_rate);
-		let x = (layer.width() as i32 - text.len() as i32) - 1;
+		let x = (layer.width() - text.len() as isize) - 1;
 		layer.write(x, 1, &text);
 	}
 }
@@ -309,7 +311,7 @@ fn render_tile_16bit(render_buf: &mut [u32], tile_data: &[u8], left: usize, widt
 	}
 }
 
-fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>,
+fn render_layer_with_blending(bounds: &BoundingRect, render_buf: &mut Vec<Vec<u32>>,
 	game: &GameState, layer: &MapLayer, scroll_x: isize, scroll_y: isize,
 	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32)),
 	blend: &Fn(&mut u32, u32)) {
@@ -327,12 +329,12 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	// Compute bounds of rendering
 	let left_tile = scroll_x / layer.tile_width;
 	let left_pixel = scroll_x % layer.tile_width;
-	let right_tile = (scroll_x + render_size.width - 1) / layer.tile_width;
-	let right_pixel = (scroll_x + render_size.width - 1) % layer.tile_width;
+	let right_tile = (scroll_x + bounds.width as usize - 1) / layer.tile_width;
+	let right_pixel = (scroll_x + bounds.width as usize - 1) % layer.tile_width;
 	let top_tile = scroll_y / layer.tile_height;
 	let top_pixel = scroll_y % layer.tile_height;
-	let bottom_tile = (scroll_y + render_size.height - 1) / layer.tile_height;
-	let bottom_pixel = (scroll_y + render_size.height - 1) % layer.tile_height;
+	let bottom_tile = (scroll_y + bounds.height as usize - 1) / layer.tile_height;
+	let bottom_pixel = (scroll_y + bounds.height as usize - 1) % layer.tile_height;
 
 	// Compute tile data layout
 	let tile_pitch = ((layer.tile_width * layer.tile_depth) + 7) / 8;
@@ -386,8 +388,9 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 				// Render tile
 				for pixel_y in cur_top_pixel ..= cur_bottom_pixel {
 					let tile_data_row = &tile_data[pixel_y * tile_pitch .. (pixel_y + 1) * tile_pitch];
-					let render_buf_row = &mut render_buf[target_y + (pixel_y - cur_top_pixel)];
-					let render_buf_tile = &mut render_buf_row[target_x .. target_x + tile_render_width];
+					let render_buf_row = &mut render_buf[(target_y + bounds.y as usize) + (pixel_y - cur_top_pixel)];
+					let render_buf_tile = &mut render_buf_row[target_x + bounds.x as usize ..
+						target_x + bounds.x as usize + tile_render_width];
 					tile_renderer(render_buf_tile, tile_data_row, cur_left_pixel, tile_render_width, palette, blend);
 				}
 			}
@@ -409,51 +412,51 @@ fn render_layer_with_blending(render_size: &RenderSize, render_buf: &mut Vec<Vec
 	}
 }
 
-fn render_layer_with_renderer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>,
+fn render_layer_with_renderer(bounds: &BoundingRect, render_buf: &mut Vec<Vec<u32>>,
 	game: &GameState, scroll_x: isize, scroll_y: isize, layer: &MapLayer,
 	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32))) {
 	match layer.alpha {
 		0 => {
 			match layer.blend_mode {
 				BlendMode::Normal =>
-					render_layer_with_blending(render_size, render_buf, game, layer,
+					render_layer_with_blending(bounds, render_buf, game, layer,
 						scroll_x, scroll_y, tile_renderer, &normal_blend),
 				BlendMode::Add =>
-					render_layer_with_blending(render_size, render_buf, game, layer,
+					render_layer_with_blending(bounds, render_buf, game, layer,
 						scroll_x, scroll_y, tile_renderer, &add_blend),
 				BlendMode::Subtract =>
-					render_layer_with_blending(render_size, render_buf, game, layer,
+					render_layer_with_blending(bounds, render_buf, game, layer,
 						scroll_x, scroll_y, tile_renderer, &subtract_blend),
 				BlendMode::Multiply =>
-					render_layer_with_blending(render_size, render_buf, game, layer,
+					render_layer_with_blending(bounds, render_buf, game, layer,
 						scroll_x, scroll_y, tile_renderer, &multiply_blend)
 			};
 		},
 		alpha => {
 			match layer.blend_mode {
 				BlendMode::Normal =>
-					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+					render_layer_with_blending(bounds, render_buf, game, layer, scroll_x, scroll_y,
 						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &normal_blend)),
 				BlendMode::Add =>
-					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+					render_layer_with_blending(bounds, render_buf, game, layer, scroll_x, scroll_y,
 						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &add_blend)),
 				BlendMode::Subtract =>
-					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+					render_layer_with_blending(bounds, render_buf, game, layer, scroll_x, scroll_y,
 						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &subtract_blend)),
 				BlendMode::Multiply =>
-					render_layer_with_blending(render_size, render_buf, game, layer, scroll_x, scroll_y,
+					render_layer_with_blending(bounds, render_buf, game, layer, scroll_x, scroll_y,
 						tile_renderer, &|pixel, color| alpha_blend(pixel, color, alpha, &multiply_blend)),
 			};
 		}
 	};
 }
 
-fn render_layer(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState,
+fn render_layer(bounds: &BoundingRect, render_buf: &mut Vec<Vec<u32>>, game: &GameState,
 	scroll_x: isize, scroll_y: isize, layer: &MapLayer) {
 	match layer.tile_depth {
-		4 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_4bit),
-		8 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_8bit),
-		16 => render_layer_with_renderer(render_size, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_16bit),
+		4 => render_layer_with_renderer(bounds, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_4bit),
+		8 => render_layer_with_renderer(bounds, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_8bit),
+		16 => render_layer_with_renderer(bounds, render_buf, game, scroll_x, scroll_y, &layer, &render_tile_16bit),
 		_ => panic!("Invalid tile bit depth {}", layer.tile_depth)
 	};
 }
@@ -579,6 +582,12 @@ pub fn render_actors(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, g
 
 pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, game: &GameState) {
 	let mut actors_rendered = false;
+	let full_bounds = BoundingRect {
+		x: 0,
+		y: 0,
+		width: render_size.width as isize,
+		height: render_size.height as isize
+	};
 
 	if let Some(map) = &game.map {
 		// Fill initial frame with map's background color
@@ -592,7 +601,7 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 
 		// Render each map layer
 		for (i, layer) in (&map.layers).into_iter().enumerate() {
-			render_layer(render_size, render_buf, game, game.scroll_x, game.scroll_y, &layer);
+			render_layer(&full_bounds, render_buf, game, game.scroll_x, game.scroll_y, &layer);
 
 			if let Some(main_layer) = map.main_layer {
 				if i == main_layer {
@@ -615,17 +624,49 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 		render_actors(render_size, render_buf, game);
 	}
 
-	for layer in &game.ui_layers {
-		layer.borrow_mut().update(&game);
+	for layout in &game.ui_layouts {
+		let rect = BoundingRect {
+			x: 0,
+			y: 0,
+			width: render_size.width as isize,
+			height: render_size.height as isize
+		};
+		layout.borrow_mut().update(&rect);
 
-		// Render UI layer centered in render area
-		let layer_ref = layer.borrow();
-		let map_layer = layer_ref.get_map_layer();
-		let layer_width = map_layer.width * map_layer.tile_width;
-		let layer_height = map_layer.height * map_layer.tile_height;
-		let scroll_x = (render_size.width as isize - layer_width as isize) / 2;
-		let scroll_y = (render_size.height as isize - layer_height as isize) / 2;
-		render_layer(render_size, render_buf, game, scroll_x, scroll_y, map_layer);
+		let layers = layout.borrow().layers();
+
+		for layer_ref in layers {
+			let mut layer = layer_ref.borrow_mut();
+			layer.update(game);
+			let mut bounds = layer.get_window_rect();
+			let map_layer = layer.get_map_layer();
+			let mut scroll_x = 0;
+			let mut scroll_y = 0;
+			if (bounds.x >= (render_size.width as isize)) || (bounds.y >= (render_size.height as isize)) {
+				continue;
+			}
+			if bounds.x < 0 {
+				scroll_x = -bounds.x;
+				if scroll_x >= bounds.width {
+					continue;
+				}
+				bounds.width -= scroll_x;
+			}
+			if bounds.y < 0 {
+				scroll_y = -bounds.y;
+				if scroll_y >= bounds.height {
+					continue;
+				}
+				bounds.height -= scroll_y;
+			}
+			if (bounds.x + bounds.width) > (render_size.width as isize) {
+				bounds.width = render_size.width as isize - bounds.x;
+			}
+			if (bounds.y + bounds.height) > (render_size.height as isize) {
+				bounds.height = render_size.height as isize - bounds.y;
+			}
+			render_layer(&bounds, render_buf, game, scroll_x, scroll_y, map_layer);
+		}
 	}
 
 	if game.fade_alpha > 0 {

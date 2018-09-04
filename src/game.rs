@@ -20,7 +20,7 @@ use std::rc::Rc;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::{Map, MapActor};
-use ui::UILayer;
+use ui::UILayoutRef;
 use actor::{Actor, ActorRef};
 use camera::Camera;
 use asset::AssetNamespace;
@@ -43,9 +43,15 @@ pub struct AddActorEvent {
 }
 
 #[derive(Clone)]
+pub struct AddUILayoutEvent {
+	layout: UILayoutRef
+}
+
+#[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
 	AddActor(AddActorEvent),
+	AddUILayout(AddUILayoutEvent),
 	FadeOut,
 	FadeIn
 }
@@ -53,7 +59,7 @@ pub enum PendingEvent {
 pub struct GameState {
 	pub assets: AssetNamespace,
 	pub map: Option<Map>,
-	pub ui_layers: Vec<RefCell<Box<UILayer>>>,
+	pub ui_layouts: Vec<UILayoutRef>,
 	pub actors: Vec<ActorRef>,
 	pub persistent_actors: Vec<ActorRef>,
 	pub controlled_actor: Option<ActorRef>,
@@ -94,8 +100,10 @@ pub trait Game {
 }
 
 impl GameState {
-	pub fn add_ui_layer(&mut self, layer: Box<UILayer>) {
-		self.ui_layers.push(RefCell::new(layer));
+	pub fn add_ui_layout(&self, layout: UILayoutRef) {
+		self.pending_events.borrow_mut().push(PendingEvent::AddUILayout(AddUILayoutEvent {
+			layout
+		}));
 	}
 
 	pub fn add_actor(&self, actor: Box<Actor>) -> ActorRef {
@@ -333,7 +341,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	let game = GameState {
 		assets: AssetNamespace::new(),
 		map: None,
-		ui_layers: Vec::new(),
+		ui_layouts: Vec::new(),
 		actors: Vec::new(),
 		persistent_actors: Vec::new(),
 		controlled_actor: None,
@@ -434,6 +442,9 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			},
 			PendingEvent::AddActor(add_actor) => {
 				game_state.actors.push(add_actor.actor);
+			},
+			PendingEvent::AddUILayout(add_ui_layout) => {
+				game_state.ui_layouts.push(add_ui_layout.layout);
 			},
 			PendingEvent::FadeIn => {
 				game_state.target_fade_alpha = 0;

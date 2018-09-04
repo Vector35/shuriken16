@@ -15,7 +15,7 @@ pub struct SpriteWithOffset {
 	pub alpha: u8
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoundingRect {
 	pub x: isize,
 	pub y: isize,
@@ -37,7 +37,7 @@ pub struct ActorInfo {
 
 pub type ActorRef = Rc<RefCell<Box<Actor>>>;
 
-pub trait AsAny {
+pub trait ActorAsAny {
 	fn as_any(&self) -> &Any;
 }
 
@@ -48,7 +48,7 @@ impl BoundingRect {
 	}
 }
 
-pub trait Actor: AsAny {
+pub trait Actor: ActorAsAny {
 	fn actor_info(&self) -> &ActorInfo;
 	fn actor_info_mut(&mut self) -> &mut ActorInfo;
 
@@ -283,7 +283,7 @@ impl ActorInfo {
 	}
 }
 
-impl<T: Actor + 'static> AsAny for T {
+impl<T: Actor + 'static> ActorAsAny for T {
 	fn as_any(&self) -> &Any {
 		self
 	}
