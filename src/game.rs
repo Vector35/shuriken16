@@ -7,6 +7,7 @@ use emscripten::emscripten;
 use self::sdl2::EventPump;
 use self::sdl2::event::{Event, WindowEvent};
 use self::sdl2::keyboard::Keycode;
+use self::sdl2::mouse::MouseButton;
 use self::sdl2::joystick::{Joystick, HatState};
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::rect::Rect;
@@ -431,6 +432,76 @@ impl GameState {
 		}
 	}
 
+	fn convert_mouse_pos(&self, x: isize, y: isize, screen_width: usize, screen_height: usize,
+		dest_size: &RenderSize) -> (isize, isize) {
+		let x_offset = ((screen_width - dest_size.width) / 2) as isize;
+		let y_offset = ((screen_height - dest_size.height) / 2) as isize;
+		let dest_x = x - x_offset;
+		let dest_y = y - y_offset;
+		let final_x = (dest_x * self.render_size.width as isize) / dest_size.width as isize;
+		let final_y = (dest_y * self.render_size.height as isize) / dest_size.height as isize;
+		(final_x, final_y)
+	}
+
+	fn mouse_button_down(&self, dest_x: isize, dest_y: isize, button: MouseButton,
+		screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
+		let (x, y) = self.convert_mouse_pos(dest_x, dest_y, screen_width, screen_height, dest_size);
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if (x < layer_ref.bounds.x) || (x >= (layer_ref.bounds.x + layer_ref.bounds.width)) ||
+					(y < layer_ref.bounds.y) || (y >= (layer_ref.bounds.y + layer_ref.bounds.height)) {
+					continue;
+				}
+				if let Some(input_handler) = &layer_ref.input_handler {
+					input_handler.on_mouse_button_down(x - layer_ref.bounds.x, y - layer_ref.bounds.y, button, &self);
+				}
+			}
+			return;
+		}
+	}
+
+	fn mouse_button_up(&self, dest_x: isize, dest_y: isize, button: MouseButton,
+		screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
+		let (x, y) = self.convert_mouse_pos(dest_x, dest_y, screen_width, screen_height, dest_size);
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if (x < layer_ref.bounds.x) || (x >= (layer_ref.bounds.x + layer_ref.bounds.width)) ||
+					(y < layer_ref.bounds.y) || (y >= (layer_ref.bounds.y + layer_ref.bounds.height)) {
+					continue;
+				}
+				if let Some(input_handler) = &layer_ref.input_handler {
+					input_handler.on_mouse_button_up(x - layer_ref.bounds.x, y - layer_ref.bounds.y, button, &self);
+				}
+			}
+			return;
+		}
+	}
+
+	fn mouse_move(&self, dest_x: isize, dest_y: isize, screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
+		let (x, y) = self.convert_mouse_pos(dest_x, dest_y, screen_width, screen_height, dest_size);
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if (x < layer_ref.bounds.x) || (x >= (layer_ref.bounds.x + layer_ref.bounds.width)) ||
+					(y < layer_ref.bounds.y) || (y >= (layer_ref.bounds.y + layer_ref.bounds.height)) {
+					continue;
+				}
+				if let Some(input_handler) = &layer_ref.input_handler {
+					input_handler.on_mouse_move(x - layer_ref.bounds.x, y - layer_ref.bounds.y, &self);
+				}
+			}
+			return;
+		}
+	}
+
 	fn get_pending_events(&mut self) -> Vec<PendingEvent> {
 		let mut pending_events = self.pending_events.borrow_mut();
 		let result = pending_events.clone();
@@ -541,6 +612,16 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				game_state.button_up(button_idx),
 			Event::JoyHatMotion {hat_idx, state, ..} =>
 				game_state.hat_changed(hat_idx, state),
+
+			Event::MouseButtonDown {x, y, mouse_btn, ..} =>
+				game_state.mouse_button_down(x as isize, y as isize, mouse_btn, render_state.screen_width,
+					render_state.screen_height, &render_state.dest_size),
+			Event::MouseButtonUp {x, y, mouse_btn, ..} =>
+				game_state.mouse_button_up(x as isize, y as isize, mouse_btn, render_state.screen_width,
+					render_state.screen_height, &render_state.dest_size),
+			Event::MouseMotion {x, y, ..} =>
+				game_state.mouse_move(x as isize, y as isize, render_state.screen_width,
+					render_state.screen_height, &render_state.dest_size),
 
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
 				render_state.screen_width = width as usize;

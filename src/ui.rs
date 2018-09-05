@@ -1,3 +1,6 @@
+extern crate sdl2;
+
+use self::sdl2::mouse::MouseButton;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::any::Any;
@@ -134,8 +137,8 @@ pub trait UIInputHandler {
 	fn on_button_up(&self, _name: &str, _game_state: &GameState) {}
 	fn on_axis_changed(&self, _name: &str, _value: f32, _game_state: &GameState) {}
 
-	fn on_mouse_down(&self, _x: isize, _y: isize, _button: u8, _game_state: &GameState) {}
-	fn on_mouse_up(&self, _x: isize, _y: isize, _button: u8, _game_state: &GameState) {}
+	fn on_mouse_button_down(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
+	fn on_mouse_button_up(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 	fn on_mouse_move(&self, _x: isize, _y: isize, _game_state: &GameState) {}
 }
 
