@@ -666,6 +666,12 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 				bounds.height = render_size.height as isize - bounds.y;
 			}
 			render_layer(&bounds, render_buf, game, scroll_x, scroll_y, map_layer);
+
+			for sprite in &layer.contents.sprites {
+				render_sprite(render_size, render_buf, bounds.x + sprite.x - scroll_x,
+					bounds.y + sprite.y - scroll_y, &sprite.animation, game.frame,
+					&sprite.blend_mode, sprite.alpha);
+			}
 		}
 	}
 

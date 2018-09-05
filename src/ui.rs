@@ -1,21 +1,32 @@
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::any::Any;
 use game::GameState;
-use map::{MapLayer, TileRef};
+use map::{MapLayer, TileRef, BlendMode};
 use tile::TileSet;
 use actor::BoundingRect;
+use sprite::{Sprite, SpriteAnimation};
+
+pub struct UISprite {
+	pub animation: Rc<SpriteAnimation>,
+	pub x: isize,
+	pub y: isize,
+	pub blend_mode: BlendMode,
+	pub alpha: u8
+}
 
 pub struct UILayerContents {
 	pub layer: MapLayer,
 	pub font_tile_set: Option<Rc<TileSet>>,
 	pub font_base: u8,
+	pub sprites: Vec<UISprite>
 }
 
 pub struct UILayer {
 	pub contents: UILayerContents,
 	pub renderer: Option<Box<UILayerRenderer>>,
-	pub bounds: BoundingRect
+	pub bounds: BoundingRect,
+	pub input_handler: Option<Box<UIInputHandler>>
 }
 
 pub enum HorizontalAnchor {
@@ -102,6 +113,7 @@ pub fn to_layout_ref(layout: Box<UILayout>) -> UILayoutRef {
 
 pub type UILayerRef = Rc<RefCell<UILayer>>;
 pub type UILayoutRef = Rc<RefCell<Box<UILayout>>>;
+pub type UILayoutWeakRef = Weak<RefCell<Box<UILayout>>>;
 
 pub trait UILayerRendererAsAny {
 	fn as_any(&self) -> &Any;
@@ -115,6 +127,16 @@ impl<T: UILayerRenderer + 'static> UILayerRendererAsAny for T {
 	fn as_any(&self) -> &Any {
 		self
 	}
+}
+
+pub trait UIInputHandler {
+	fn on_button_down(&self, _name: &str, _game_state: &GameState) {}
+	fn on_button_up(&self, _name: &str, _game_state: &GameState) {}
+	fn on_axis_changed(&self, _name: &str, _value: f32, _game_state: &GameState) {}
+
+	fn on_mouse_down(&self, _x: isize, _y: isize, _button: u8, _game_state: &GameState) {}
+	fn on_mouse_up(&self, _x: isize, _y: isize, _button: u8, _game_state: &GameState) {}
+	fn on_mouse_move(&self, _x: isize, _y: isize, _game_state: &GameState) {}
 }
 
 impl UILayerContents {
@@ -132,6 +154,7 @@ impl UILayerContents {
 				self.layer.set_tile(x as usize, y as usize, None);
 			}
 		}
+		self.sprites.clear();
 	}
 
 	pub fn write(&mut self, x: isize, y: isize, text: &str) {
@@ -170,6 +193,40 @@ impl UILayerContents {
 			self.layer.set_tile(x as usize, y as usize, Some(tile));
 		}
 	}
+
+	pub fn add_sprite(&mut self, x: isize, y: isize, sprite: Rc<Sprite>) {
+		self.sprites.push(UISprite {
+			x, y,
+			animation: sprite.get_default_animation(),
+			blend_mode: BlendMode::Normal,
+			alpha: 0
+		});
+	}
+
+	pub fn add_sprite_with_blending(&mut self, x: isize, y: isize, sprite: Rc<Sprite>,
+		blend_mode: BlendMode, alpha: u8) {
+		self.sprites.push(UISprite {
+			x, y,
+			animation: sprite.get_default_animation(),
+			blend_mode, alpha
+		});
+	}
+
+	pub fn add_sprite_animation(&mut self, x: isize, y: isize, animation: Rc<SpriteAnimation>) {
+		self.sprites.push(UISprite {
+			x, y,
+			animation,
+			blend_mode: BlendMode::Normal,
+			alpha: 0
+		});
+	}
+
+	pub fn add_sprite_animation_with_blending(&mut self, x: isize, y: isize, animation: Rc<SpriteAnimation>,
+		blend_mode: BlendMode, alpha: u8) {
+		self.sprites.push(UISprite {
+			x, y, animation, blend_mode, alpha
+		});
+	}
 }
 
 impl UILayer {
@@ -178,10 +235,12 @@ impl UILayer {
 			contents: UILayerContents {
 				layer: MapLayer::new("Text", 0, 0, tile_width, tile_height, tile_depth),
 				font_tile_set: None,
-				font_base: 0
+				font_base: 0,
+				sprites: Vec::new()
 			},
 			renderer: None,
-			bounds: BoundingRect { x: 0, y: 0, width: 0, height: 0 }
+			bounds: BoundingRect { x: 0, y: 0, width: 0, height: 0 },
+			input_handler: None
 		}
 	}
 

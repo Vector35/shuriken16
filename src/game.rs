@@ -20,7 +20,7 @@ use std::rc::Rc;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::{Map, MapActor};
-use ui::UILayoutRef;
+use ui::{UILayoutRef, UILayerRef};
 use actor::{Actor, ActorRef};
 use camera::Camera;
 use asset::AssetNamespace;
@@ -48,10 +48,16 @@ pub struct AddUILayoutEvent {
 }
 
 #[derive(Clone)]
+pub struct RemoveUILayoutEvent {
+	layout: UILayoutRef
+}
+
+#[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
 	AddActor(AddActorEvent),
 	AddUILayout(AddUILayoutEvent),
+	RemoveUILayout(RemoveUILayoutEvent),
 	FadeOut,
 	FadeIn
 }
@@ -104,6 +110,21 @@ impl GameState {
 		self.pending_events.borrow_mut().push(PendingEvent::AddUILayout(AddUILayoutEvent {
 			layout
 		}));
+	}
+
+	pub fn remove_ui_layout(&self, layout: UILayoutRef) {
+		self.pending_events.borrow_mut().push(PendingEvent::RemoveUILayout(RemoveUILayoutEvent {
+			layout
+		}));
+	}
+
+	pub fn is_ui_layout_present(&self, layout: &UILayoutRef) -> bool {
+		for check in &self.ui_layouts {
+			if Rc::ptr_eq(check, layout) {
+				return true;
+			}
+		}
+		false
 	}
 
 	pub fn add_actor(&self, actor: Box<Actor>) -> ActorRef {
@@ -186,18 +207,63 @@ impl GameState {
 		self.camera = camera;
 	}
 
+	fn get_ui_input_layers(&self) -> Vec<UILayerRef> {
+		// Check layouts from top to bottom for input handling
+		for layout in self.ui_layouts.iter().rev() {
+			let layers = layout.borrow().layers();
+			let mut input_layers = Vec::new();
+			for layer in layers {
+				if layer.borrow().input_handler.is_some() {
+					input_layers.push(layer);
+				}
+			}
+			if input_layers.len() > 0 {
+				return input_layers;
+			}
+		}
+		Vec::new()
+	}
+
 	fn key_down(&self, key: Keycode) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.key_bindings.get(&key) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						input_handler.on_button_down(action, &self);
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.key_bindings.get(&key) {
 			if let Some(actor) = &self.controlled_actor {
-				actor.borrow_mut().on_button_down(action);
+				actor.borrow_mut().on_button_down(action, &self);
 			}
 		}
 	}
 
 	fn key_up(&self, key: Keycode) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.key_bindings.get(&key) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						input_handler.on_button_up(action, &self);
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.key_bindings.get(&key) {
 			if let Some(actor) = &self.controlled_actor {
-				actor.borrow_mut().on_button_up(action);
+				actor.borrow_mut().on_button_up(action, &self);
 			}
 		}
 	}
@@ -213,76 +279,153 @@ impl GameState {
 		} else if value > 0x1000 {
 			adjusted_value = (value - 0x1000) as f32 / 0x6000 as f32;
 		}
+
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.axis_bindings.get(&axis) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						input_handler.on_axis_changed(action, adjusted_value, &self);
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.axis_bindings.get(&axis) {
 			if let Some(actor) = &self.controlled_actor {
-				actor.borrow_mut().on_axis_changed(action, adjusted_value);
+				actor.borrow_mut().on_axis_changed(action, adjusted_value, &self);
 			}
 		}
 	}
 
 	fn button_down(&self, button: u8) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.button_bindings.get(&button) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						input_handler.on_button_down(action, &self);
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.button_bindings.get(&button) {
 			if let Some(actor) = &self.controlled_actor {
-				actor.borrow_mut().on_button_down(action);
+				actor.borrow_mut().on_button_down(action, &self);
 			}
 		}
 	}
 
 	fn button_up(&self, button: u8) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.button_bindings.get(&button) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						input_handler.on_button_up(action, &self);
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.button_bindings.get(&button) {
 			if let Some(actor) = &self.controlled_actor {
-				actor.borrow_mut().on_button_up(action);
+				actor.borrow_mut().on_button_up(action, &self);
 			}
 		}
 	}
 
 	fn hat_changed(&self, hat: u8, state: HatState) {
+		let left = match state {
+			HatState::Left => true,
+			HatState::LeftUp => true,
+			HatState::LeftDown => true,
+			_ => false
+		};
+		let right = match state {
+			HatState::Right => true,
+			HatState::RightUp => true,
+			HatState::RightDown => true,
+			_ => false
+		};
+		let up = match state {
+			HatState::Up => true,
+			HatState::LeftUp => true,
+			HatState::RightUp => true,
+			_ => false
+		};
+		let down = match state {
+			HatState::Down => true,
+			HatState::LeftDown => true,
+			HatState::RightDown => true,
+			_ => false
+		};
+
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			if let Some(action) = self.hat_bindings.get(&hat) {
+				for layer in ui_input_layers {
+					let layer_ref = layer.borrow();
+					if let Some(input_handler) = &layer_ref.input_handler {
+						if left {
+							input_handler.on_button_down(&action.left, &self);
+						} else {
+							input_handler.on_button_up(&action.left, &self);
+						}
+						if right {
+							input_handler.on_button_down(&action.right, &self);
+						} else {
+							input_handler.on_button_up(&action.right, &self);
+						}
+						if up {
+							input_handler.on_button_down(&action.up, &self);
+						} else {
+							input_handler.on_button_up(&action.up, &self);
+						}
+						if down {
+							input_handler.on_button_down(&action.down, &self);
+						} else {
+							input_handler.on_button_up(&action.down, &self);
+						}
+					}
+				}
+			}
+			return;
+		}
+
 		if let Some(action) = self.hat_bindings.get(&hat) {
 			if let Some(actor) = &self.controlled_actor {
-				let left = match state {
-					HatState::Left => true,
-					HatState::LeftUp => true,
-					HatState::LeftDown => true,
-					_ => false
-				};
-				let right = match state {
-					HatState::Right => true,
-					HatState::RightUp => true,
-					HatState::RightDown => true,
-					_ => false
-				};
-				let up = match state {
-					HatState::Up => true,
-					HatState::LeftUp => true,
-					HatState::RightUp => true,
-					_ => false
-				};
-				let down = match state {
-					HatState::Down => true,
-					HatState::LeftDown => true,
-					HatState::RightDown => true,
-					_ => false
-				};
 				let mut actor_ref = actor.borrow_mut();
 				if left {
-					actor_ref.on_button_down(&action.left);
+					actor_ref.on_button_down(&action.left, &self);
 				} else {
-					actor_ref.on_button_up(&action.left);
+					actor_ref.on_button_up(&action.left, &self);
 				}
 				if right {
-					actor_ref.on_button_down(&action.right);
+					actor_ref.on_button_down(&action.right, &self);
 				} else {
-					actor_ref.on_button_up(&action.right);
+					actor_ref.on_button_up(&action.right, &self);
 				}
 				if up {
-					actor_ref.on_button_down(&action.up);
+					actor_ref.on_button_down(&action.up, &self);
 				} else {
-					actor_ref.on_button_up(&action.up);
+					actor_ref.on_button_up(&action.up, &self);
 				}
 				if down {
-					actor_ref.on_button_down(&action.down);
+					actor_ref.on_button_down(&action.down, &self);
 				} else {
-					actor_ref.on_button_up(&action.down);
+					actor_ref.on_button_up(&action.down, &self);
 				}
 			}
 		}
@@ -445,6 +588,15 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			},
 			PendingEvent::AddUILayout(add_ui_layout) => {
 				game_state.ui_layouts.push(add_ui_layout.layout);
+			},
+			PendingEvent::RemoveUILayout(remove_ui_layout) => {
+				let mut new_ui_layouts = Vec::new();
+				for layout in &game_state.ui_layouts {
+					if !Rc::ptr_eq(layout, &remove_ui_layout.layout) {
+						new_ui_layouts.push(layout.clone());
+					}
+				}
+				game_state.ui_layouts = new_ui_layouts;
 			},
 			PendingEvent::FadeIn => {
 				game_state.target_fade_alpha = 0;

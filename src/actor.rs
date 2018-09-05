@@ -260,9 +260,9 @@ pub trait Actor: ActorAsAny {
 
 	fn get_camera_focus_offset(&self) -> (isize, isize) { (0, 0) }
 
-	fn on_button_down(&mut self, _name: &str) {}
-	fn on_button_up(&mut self, _name: &str) {}
-	fn on_axis_changed(&mut self, _name: &str, _value: f32) {}
+	fn on_button_down(&mut self, _name: &str, _game_state: &GameState) {}
+	fn on_button_up(&mut self, _name: &str, _game_state: &GameState) {}
+	fn on_axis_changed(&mut self, _name: &str, _value: f32, _game_state: &GameState) {}
 
 	fn on_collide_with_world(&mut self, _game_state: &GameState) {}
 	fn on_collide_with_actor(&mut self, _actor: &ActorRef, _game_state: &GameState) {}
