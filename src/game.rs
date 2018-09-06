@@ -81,6 +81,10 @@ pub struct GameState {
 	pub axis_bindings: HashMap<u8, String>,
 	pub button_bindings: HashMap<u8, String>,
 	pub hat_bindings: HashMap<u8, HatBindings>,
+	pub ui_key_bindings: HashMap<Keycode, String>,
+	pub ui_axis_bindings: HashMap<u8, String>,
+	pub ui_button_bindings: HashMap<u8, String>,
+	pub ui_hat_bindings: HashMap<u8, HatBindings>,
 	pub actor_loaders: HashMap<String, Box<Fn(&MapActor, &AssetNamespace) -> Option<Box<Actor>>>>,
 	pub pending_events: RefCell<Vec<PendingEvent>>
 }
@@ -200,6 +204,27 @@ impl GameState {
 		});
 	}
 
+	pub fn bind_ui_key(&mut self, key: Keycode, button: &str) {
+		self.ui_key_bindings.insert(key, button.to_string());
+	}
+
+	pub fn bind_ui_axis(&mut self, axis: u8, name: &str) {
+		self.ui_axis_bindings.insert(axis, name.to_string());
+	}
+
+	pub fn bind_ui_button(&mut self, button: u8, name: &str) {
+		self.ui_button_bindings.insert(button, name.to_string());
+	}
+
+	pub fn bind_ui_hat(&mut self, hat: u8, left: &str, right: &str, up: &str, down: &str) {
+		self.ui_hat_bindings.insert(hat, HatBindings {
+			left: left.to_string(),
+			right: right.to_string(),
+			up: up.to_string(),
+			down: down.to_string()
+		});
+	}
+
 	pub fn set_controlled_actor(&mut self, actor: &ActorRef) {
 		self.controlled_actor = Some(actor.clone());
 	}
@@ -229,11 +254,19 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.key_bindings.get(&key) {
+			let action = if let Some(action) = self.ui_key_bindings.get(&key) {
+				Some(action.clone())
+			} else if let Some(action) = self.key_bindings.get(&key) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_down(action, &self);
+						input_handler.on_button_down(&action, &self);
 					}
 				}
 			}
@@ -251,11 +284,19 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.key_bindings.get(&key) {
+			let action = if let Some(action) = self.ui_key_bindings.get(&key) {
+				Some(action.clone())
+			} else if let Some(action) = self.key_bindings.get(&key) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_up(action, &self);
+						input_handler.on_button_up(&action, &self);
 					}
 				}
 			}
@@ -284,11 +325,19 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.axis_bindings.get(&axis) {
+			let action = if let Some(action) = self.ui_axis_bindings.get(&axis) {
+				Some(action.clone())
+			} else if let Some(action) = self.axis_bindings.get(&axis) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_axis_changed(action, adjusted_value, &self);
+						input_handler.on_axis_changed(&action, adjusted_value, &self);
 					}
 				}
 			}
@@ -306,11 +355,19 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.button_bindings.get(&button) {
+			let action = if let Some(action) = self.ui_button_bindings.get(&button) {
+				Some(action.clone())
+			} else if let Some(action) = self.button_bindings.get(&button) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_down(action, &self);
+						input_handler.on_button_down(&action, &self);
 					}
 				}
 			}
@@ -328,11 +385,19 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.button_bindings.get(&button) {
+			let action = if let Some(action) = self.ui_button_bindings.get(&button) {
+				Some(action.clone())
+			} else if let Some(action) = self.button_bindings.get(&button) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_up(action, &self);
+						input_handler.on_button_up(&action, &self);
 					}
 				}
 			}
@@ -375,7 +440,15 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			if let Some(action) = self.hat_bindings.get(&hat) {
+			let action = if let Some(action) = self.ui_hat_bindings.get(&hat) {
+				Some(action.clone())
+			} else if let Some(action) = self.hat_bindings.get(&hat) {
+				Some(action.clone())
+			} else {
+				None
+			};
+
+			if let Some(action) = action {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
@@ -572,6 +645,10 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		axis_bindings: HashMap::new(),
 		button_bindings: HashMap::new(),
 		hat_bindings: HashMap::new(),
+		ui_key_bindings: HashMap::new(),
+		ui_axis_bindings: HashMap::new(),
+		ui_button_bindings: HashMap::new(),
+		ui_hat_bindings: HashMap::new(),
 		actor_loaders: HashMap::new(),
 		pending_events: RefCell::new(Vec::new())
 	};
@@ -595,9 +672,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 
 	for event in render_state.events.poll_iter() {
 		match event {
-			Event::Quit {..} |
-			Event::KeyDown {keycode: Some(Keycode::Escape), ..} =>
-				process::exit(0),
+			Event::Quit {..} => process::exit(0),
 
 			Event::KeyDown {keycode: Some(keycode), ..} =>
 				game_state.key_down(keycode),
