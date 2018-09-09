@@ -1,7 +1,11 @@
 {
+   "actor_types" : [],
    "effect_layers" : [],
    "maps" : [],
    "palettes" : [ "Black_and_White.e9b5a0299fdf4d38ad7aa970a217ecc2.s16pal" ],
    "sprites" : [],
-   "tilesets" : [ "Default_Text.8ed4ec173d52467ab089c8c9451bddc7.s16tile" ]
+   "tilesets" : [
+      "Default_Large_Text.3b8405bf6f6844218d01965e9a238ca3.s16tile",
+      "Default_Text.8ed4ec173d52467ab089c8c9451bddc7.s16tile"
+   ]
 }

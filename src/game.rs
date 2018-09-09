@@ -86,7 +86,11 @@ pub struct GameState {
 	pub ui_button_bindings: HashMap<u8, String>,
 	pub ui_hat_bindings: HashMap<u8, HatBindings>,
 	pub actor_loaders: HashMap<String, Box<Fn(&MapActor, &AssetNamespace) -> Option<Box<Actor>>>>,
-	pub pending_events: RefCell<Vec<PendingEvent>>
+	pub pending_events: RefCell<Vec<PendingEvent>>,
+	pub last_click_frame: Option<usize>,
+	pub last_click_button: Option<MouseButton>,
+	pub last_click_x: Option<isize>,
+	pub last_click_y: Option<isize>,
 }
 
 pub struct RenderState {
@@ -516,9 +520,57 @@ impl GameState {
 		(final_x, final_y)
 	}
 
-	fn mouse_button_down(&self, dest_x: isize, dest_y: isize, button: MouseButton,
+	fn double_click(&self, x: isize, y: isize, button: MouseButton) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if (x < layer_ref.bounds.x) || (x >= (layer_ref.bounds.x + layer_ref.bounds.width)) ||
+					(y < layer_ref.bounds.y) || (y >= (layer_ref.bounds.y + layer_ref.bounds.height)) {
+					continue;
+				}
+				if let Some(input_handler) = &layer_ref.input_handler {
+					input_handler.on_double_click(x - layer_ref.bounds.x, y - layer_ref.bounds.y, button, &self);
+				}
+			}
+			return;
+		}
+	}
+
+	fn mouse_button_down(&mut self, dest_x: isize, dest_y: isize, button: MouseButton,
 		screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
 		let (x, y) = self.convert_mouse_pos(dest_x, dest_y, screen_width, screen_height, dest_size);
+
+		let mut double_clicked = false;
+		if let Some(last_frame) = self.last_click_frame {
+			if (self.frame - last_frame) < 30 {
+				if let Some(last_button) = self.last_click_button {
+					if last_button == button {
+						if let Some(last_x) = self.last_click_x {
+							if let Some(last_y) = self.last_click_y {
+								if ((last_x - x).abs() + (last_y - y).abs()) <= 4 {
+									self.double_click(x, y, button);
+									double_clicked = true;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		if double_clicked {
+			self.last_click_frame = None;
+			self.last_click_button = None;
+			self.last_click_x = None;
+			self.last_click_y = None;
+		} else {
+			self.last_click_frame = Some(self.frame);
+			self.last_click_button = Some(button);
+			self.last_click_x = Some(x);
+			self.last_click_y = Some(y);
+		}
+
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
@@ -650,7 +702,11 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		ui_button_bindings: HashMap::new(),
 		ui_hat_bindings: HashMap::new(),
 		actor_loaders: HashMap::new(),
-		pending_events: RefCell::new(Vec::new())
+		pending_events: RefCell::new(Vec::new()),
+		last_click_frame: None,
+		last_click_button: None,
+		last_click_x: None,
+		last_click_y: None
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,

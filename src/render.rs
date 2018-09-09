@@ -650,6 +650,7 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 				if scroll_x >= bounds.width {
 					continue;
 				}
+				bounds.x = 0;
 				bounds.width -= scroll_x;
 			}
 			if bounds.y < 0 {
@@ -657,6 +658,7 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 				if scroll_y >= bounds.height {
 					continue;
 				}
+				bounds.y = 0;
 				bounds.height -= scroll_y;
 			}
 			if (bounds.x + bounds.width) > (render_size.width as isize) {

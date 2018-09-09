@@ -50,6 +50,11 @@ pub struct SingleLayerLayout {
 	pub height: Option<isize>
 }
 
+pub struct EmptyLayout {
+	pub width: Option<isize>,
+	pub height: Option<isize>
+}
+
 pub struct FixedSizeLayout {
 	pub inner: UILayoutRef,
 	pub width: isize,
@@ -85,6 +90,23 @@ pub struct BackgroundLayout {
 	pub background: UILayoutRef,
 	pub foreground: UILayoutRef,
 	pub alignment: BackgroundLayoutAlignment
+}
+
+pub struct HorizontalBoxLayout {
+	pub layouts: Vec<UILayoutRef>
+}
+
+pub struct VerticalBoxLayout {
+	pub layouts: Vec<UILayoutRef>
+}
+
+pub trait UIVisibilityHandler {
+	fn is_visible(&self) -> bool;
+}
+
+pub struct VisibilityLayout {
+	pub inner: UILayoutRef,
+	pub handler: Box<UIVisibilityHandler>
 }
 
 pub fn to_layer_ref(layer: UILayer) -> UILayerRef {
@@ -140,6 +162,7 @@ pub trait UIInputHandler {
 	fn on_mouse_button_down(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 	fn on_mouse_button_up(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 	fn on_mouse_move(&self, _x: isize, _y: isize, _game_state: &GameState) {}
+	fn on_double_click(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 }
 
 impl UILayerContents {
@@ -353,6 +376,61 @@ impl SingleLayerLayout {
 	pub fn with_fill(layer: UILayerRef) -> SingleLayerLayout {
 		SingleLayerLayout {
 			layer,
+			width: None,
+			height: None
+		}
+	}
+}
+
+impl UILayout for EmptyLayout {
+	fn width(&self) -> Option<isize> { self.width }
+	fn height(&self) -> Option<isize> { self.height }
+	fn tile_width(&self) -> isize { 1 }
+	fn tile_height(&self) -> isize { 1 }
+
+	fn update(&self, bounds: &BoundingRect) -> BoundingRect {
+		let rect = BoundingRect {
+			x: bounds.x,
+			y: bounds.y,
+			width: match self.width() {
+				Some(width) => width,
+				None => bounds.width
+			},
+			height: match self.height() {
+				Some(height) => height,
+				None => bounds.height
+			}
+		};
+		rect
+	}
+
+	fn layers(&self) -> Vec<UILayerRef> { [].to_vec() }
+}
+
+impl EmptyLayout {
+	pub fn with_fixed_size(width: isize, height: isize) -> EmptyLayout {
+		EmptyLayout {
+			width: Some(width),
+			height: Some(height)
+		}
+	}
+
+	pub fn with_fixed_width(width: isize) -> EmptyLayout {
+		EmptyLayout {
+			width: Some(width),
+			height: None
+		}
+	}
+
+	pub fn with_fixed_height(height: isize) -> EmptyLayout {
+		EmptyLayout {
+			width: None,
+			height: Some(height)
+		}
+	}
+
+	pub fn with_fill() -> EmptyLayout {
+		EmptyLayout {
 			width: None,
 			height: None
 		}
@@ -584,6 +662,238 @@ impl BackgroundLayout {
 		alignment: BackgroundLayoutAlignment) -> BackgroundLayout {
 		BackgroundLayout {
 			background, foreground, alignment
+		}
+	}
+}
+
+impl UILayout for HorizontalBoxLayout {
+	fn width(&self) -> Option<isize> {
+		let mut width = 0;
+		for layout in &self.layouts {
+			match layout.borrow().width() {
+				Some(layout_width) => width += layout_width,
+				None => return None
+			}
+		}
+		Some(width)
+	}
+
+	fn height(&self) -> Option<isize> {
+		let mut height = 0;
+		for layout in &self.layouts {
+			match layout.borrow().height() {
+				Some(layout_height) => {
+					if layout_height > height {
+						height = layout_height;
+					}
+				},
+				None => return None
+			}
+		}
+		Some(height)
+	}
+
+	fn tile_width(&self) -> isize {
+		if self.layouts.len() > 0 {
+			self.layouts[0].borrow().tile_width()
+		} else {
+			1
+		}
+	}
+
+	fn tile_height(&self) -> isize {
+		if self.layouts.len() > 0 {
+			self.layouts[0].borrow().tile_height()
+		} else {
+			1
+		}
+	}
+
+	fn update(&self, bounds: &BoundingRect) -> BoundingRect {
+		let mut fixed_width = 0;
+		let mut fill_count = 0;
+		for layout in &self.layouts {
+			match layout.borrow().width() {
+				Some(layout_width) => fixed_width += layout_width,
+				None => fill_count += 1
+			}
+		}
+
+		let mut fill_width = 0;
+		if fill_count > 0 {
+			fill_width = (bounds.width - fixed_width) / fill_count;
+			if fill_width < 0 {
+				fill_width = 0;
+			}
+		}
+
+		let mut x = 0;
+		for layout in &self.layouts {
+			let width = match layout.borrow().width() {
+				Some(layout_width) => layout_width,
+				None => fill_width
+			};
+			layout.borrow().update(&BoundingRect {
+				x: bounds.x + x,
+				y: bounds.y,
+				width: width,
+				height: bounds.height
+			});
+			x += width;
+		}
+		bounds.clone()
+	}
+
+	fn layers(&self) -> Vec<UILayerRef> {
+		let mut result = Vec::new();
+		for layout in &self.layouts {
+			result.append(&mut layout.borrow().layers());
+		}
+		result
+	}
+}
+
+impl HorizontalBoxLayout {
+	pub fn new(layouts: Vec<UILayoutRef>) -> HorizontalBoxLayout {
+		HorizontalBoxLayout {
+			layouts
+		}
+	}
+}
+
+impl UILayout for VerticalBoxLayout {
+	fn width(&self) -> Option<isize> {
+		let mut width = 0;
+		for layout in &self.layouts {
+			match layout.borrow().width() {
+				Some(layout_width) => {
+					if layout_width > width {
+						width = layout_width;
+					}
+				},
+				None => return None
+			}
+		}
+		Some(width)
+	}
+
+	fn height(&self) -> Option<isize> {
+		let mut height = 0;
+		for layout in &self.layouts {
+			match layout.borrow().height() {
+				Some(layout_height) => height += layout_height,
+				None => return None
+			}
+		}
+		Some(height)
+	}
+
+	fn tile_width(&self) -> isize {
+		if self.layouts.len() > 0 {
+			self.layouts[0].borrow().tile_width()
+		} else {
+			1
+		}
+	}
+
+	fn tile_height(&self) -> isize {
+		if self.layouts.len() > 0 {
+			self.layouts[0].borrow().tile_height()
+		} else {
+			1
+		}
+	}
+
+	fn update(&self, bounds: &BoundingRect) -> BoundingRect {
+		let mut fixed_height = 0;
+		let mut fill_count = 0;
+		for layout in &self.layouts {
+			match layout.borrow().height() {
+				Some(layout_height) => fixed_height += layout_height,
+				None => fill_count += 1
+			}
+		}
+
+		let mut fill_height = 0;
+		if fill_count > 0 {
+			fill_height = (bounds.height - fixed_height) / fill_count;
+			if fill_height < 0 {
+				fill_height = 0;
+			}
+		}
+
+		let mut y = 0;
+		for layout in &self.layouts {
+			let height = match layout.borrow().height() {
+				Some(layout_height) => layout_height,
+				None => fill_height
+			};
+			layout.borrow().update(&BoundingRect {
+				x: bounds.x,
+				y: bounds.y + y,
+				width: bounds.width,
+				height: height
+			});
+			y += height;
+		}
+		bounds.clone()
+	}
+
+	fn layers(&self) -> Vec<UILayerRef> {
+		let mut result = Vec::new();
+		for layout in &self.layouts {
+			result.append(&mut layout.borrow().layers());
+		}
+		result
+	}
+}
+
+impl VerticalBoxLayout {
+	pub fn new(layouts: Vec<UILayoutRef>) -> VerticalBoxLayout {
+		VerticalBoxLayout {
+			layouts
+		}
+	}
+}
+
+impl UILayout for VisibilityLayout {
+	fn width(&self) -> Option<isize> {
+		if self.handler.is_visible() {
+			self.inner.borrow().width()
+		} else {
+			Some(0)
+		}
+	}
+
+	fn height(&self) -> Option<isize> {
+		if self.handler.is_visible() {
+			self.inner.borrow().height()
+		} else {
+			Some(0)
+		}
+	}
+
+	fn tile_width(&self) -> isize { self.inner.borrow().tile_width() }
+	fn tile_height(&self) -> isize { self.inner.borrow().tile_height() }
+
+	fn update(&self, bounds: &BoundingRect) -> BoundingRect {
+		self.inner.borrow().update(bounds);
+		bounds.clone()
+	}
+
+	fn layers(&self) -> Vec<UILayerRef> {
+		if self.handler.is_visible() {
+			self.inner.borrow().layers()
+		} else {
+			Vec::new()
+		}
+	}
+}
+
+impl VisibilityLayout {
+	pub fn new(inner: UILayoutRef, handler: Box<UIVisibilityHandler>) -> VisibilityLayout {
+		VisibilityLayout {
+			inner, handler
 		}
 	}
 }
