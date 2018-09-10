@@ -1,6 +1,7 @@
 extern crate sdl2;
 
 use self::sdl2::mouse::MouseButton;
+use self::sdl2::keyboard::{Keycode, Mod};
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::any::Any;
@@ -162,7 +163,13 @@ pub trait UIInputHandler {
 	fn on_mouse_button_down(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 	fn on_mouse_button_up(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
 	fn on_mouse_move(&self, _x: isize, _y: isize, _game_state: &GameState) {}
+	fn on_mouse_wheel(&self, _x: isize, _y: isize, _game_state: &GameState) {}
 	fn on_double_click(&self, _x: isize, _y: isize, _button: MouseButton, _game_state: &GameState) {}
+
+	fn raw_keyboard_input(&self) -> bool { false }
+	fn on_key_down(&self, _key: Keycode, _key_mod: Mod, _game_state: &GameState) {}
+	fn on_key_up(&self, _key: Keycode, _key_mod: Mod, _game_state: &GameState) {}
+	fn on_text_input(&self, _text: &str, _game_state: &GameState) {}
 }
 
 impl UILayerContents {
@@ -194,7 +201,15 @@ impl UILayerContents {
 		}
 
 		let mut cur_x = x;
+		let mut offset_x = 0;
 		for ch in text.chars() {
+			if ch == '\t' {
+				let tab_width = 4 - (offset_x % 4);
+				cur_x += tab_width;
+				offset_x += tab_width;
+				continue;
+			}
+
 			let ord = ch as u32;
 			if ord < self.font_base as u32 {
 				continue;
@@ -211,6 +226,7 @@ impl UILayerContents {
 				}));
 			}
 			cur_x += 1;
+			offset_x += 1;
 		}
 	}
 

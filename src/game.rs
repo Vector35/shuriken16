@@ -6,13 +6,14 @@ use emscripten::emscripten;
 
 use self::sdl2::EventPump;
 use self::sdl2::event::{Event, WindowEvent};
-use self::sdl2::keyboard::Keycode;
+use self::sdl2::keyboard::{Keycode, Mod};
 use self::sdl2::mouse::MouseButton;
 use self::sdl2::joystick::{Joystick, HatState};
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::rect::Rect;
 use self::sdl2::render::{Canvas, Texture};
 use self::sdl2::video::Window;
+use self::sdl2::clipboard::ClipboardUtil;
 use self::byteorder::{ByteOrder, LittleEndian};
 use std::process;
 use std::cell::RefCell;
@@ -91,6 +92,7 @@ pub struct GameState {
 	pub last_click_button: Option<MouseButton>,
 	pub last_click_x: Option<isize>,
 	pub last_click_y: Option<isize>,
+	pub clipboard: ClipboardUtil
 }
 
 pub struct RenderState {
@@ -254,23 +256,27 @@ impl GameState {
 		Vec::new()
 	}
 
-	fn key_down(&self, key: Keycode) {
+	fn key_down(&self, key: Keycode, key_mod: Mod) {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			let action = if let Some(action) = self.ui_key_bindings.get(&key) {
-				Some(action.clone())
-			} else if let Some(action) = self.key_bindings.get(&key) {
-				Some(action.clone())
-			} else {
-				None
-			};
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if let Some(input_handler) = &layer_ref.input_handler {
+					if input_handler.raw_keyboard_input() {
+						input_handler.on_key_down(key, key_mod, &self);
+					} else {
+						let action = if let Some(action) = self.ui_key_bindings.get(&key) {
+							Some(action.clone())
+						} else if let Some(action) = self.key_bindings.get(&key) {
+							Some(action.clone())
+						} else {
+							None
+						};
 
-			if let Some(action) = action {
-				for layer in ui_input_layers {
-					let layer_ref = layer.borrow();
-					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_down(&action, &self);
+						if let Some(action) = action {
+							input_handler.on_button_down(&action, &self);
+						}
 					}
 				}
 			}
@@ -284,23 +290,27 @@ impl GameState {
 		}
 	}
 
-	fn key_up(&self, key: Keycode) {
+	fn key_up(&self, key: Keycode, key_mod: Mod) {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
-			let action = if let Some(action) = self.ui_key_bindings.get(&key) {
-				Some(action.clone())
-			} else if let Some(action) = self.key_bindings.get(&key) {
-				Some(action.clone())
-			} else {
-				None
-			};
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if let Some(input_handler) = &layer_ref.input_handler {
+					if input_handler.raw_keyboard_input() {
+						input_handler.on_key_up(key, key_mod, &self);
+					} else {
+						let action = if let Some(action) = self.ui_key_bindings.get(&key) {
+							Some(action.clone())
+						} else if let Some(action) = self.key_bindings.get(&key) {
+							Some(action.clone())
+						} else {
+							None
+						};
 
-			if let Some(action) = action {
-				for layer in ui_input_layers {
-					let layer_ref = layer.borrow();
-					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_up(&action, &self);
+						if let Some(action) = action {
+							input_handler.on_button_up(&action, &self);
+						}
 					}
 				}
 			}
@@ -310,6 +320,21 @@ impl GameState {
 		if let Some(action) = self.key_bindings.get(&key) {
 			if let Some(actor) = &self.controlled_actor {
 				actor.borrow_mut().on_button_up(action, &self);
+			}
+		}
+	}
+
+	fn text_input(&self, text: &str) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if let Some(input_handler) = &layer_ref.input_handler {
+					if input_handler.raw_keyboard_input() {
+						input_handler.on_text_input(text, &self);
+					}
+				}
 			}
 		}
 	}
@@ -627,6 +652,20 @@ impl GameState {
 		}
 	}
 
+	fn mouse_wheel(&self, x: isize, y: isize) {
+		let ui_input_layers = self.get_ui_input_layers();
+		if ui_input_layers.len() > 0 {
+			// Direct input at active UI handlers
+			for layer in ui_input_layers {
+				let layer_ref = layer.borrow();
+				if let Some(input_handler) = &layer_ref.input_handler {
+					input_handler.on_mouse_wheel(x, y, &self);
+				}
+			}
+			return;
+		}
+	}
+
 	fn get_pending_events(&mut self) -> Vec<PendingEvent> {
 		let mut pending_events = self.pending_events.borrow_mut();
 		let result = pending_events.clone();
@@ -706,7 +745,8 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		last_click_frame: None,
 		last_click_button: None,
 		last_click_x: None,
-		last_click_y: None
+		last_click_y: None,
+		clipboard: video.clipboard()
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -730,10 +770,10 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 		match event {
 			Event::Quit {..} => process::exit(0),
 
-			Event::KeyDown {keycode: Some(keycode), ..} =>
-				game_state.key_down(keycode),
-			Event::KeyUp {keycode: Some(keycode), ..} =>
-				game_state.key_up(keycode),
+			Event::KeyDown {keycode: Some(keycode), keymod, ..} =>
+				game_state.key_down(keycode, keymod),
+			Event::KeyUp {keycode: Some(keycode), keymod, ..} =>
+				game_state.key_up(keycode, keymod),
 
 			Event::JoyAxisMotion {axis_idx, value, ..} =>
 				game_state.axis_changed(axis_idx, value),
@@ -753,6 +793,11 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			Event::MouseMotion {x, y, ..} =>
 				game_state.mouse_move(x as isize, y as isize, render_state.screen_width,
 					render_state.screen_height, &render_state.dest_size),
+			Event::MouseWheel {x, y, ..} =>
+				game_state.mouse_wheel(x as isize, y as isize),
+
+			Event::TextInput {text, ..} =>
+				game_state.text_input(&text),
 
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
 				render_state.screen_width = width as usize;
