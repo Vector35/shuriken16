@@ -92,7 +92,9 @@ pub struct GameState {
 	pub last_click_button: Option<MouseButton>,
 	pub last_click_x: Option<isize>,
 	pub last_click_y: Option<isize>,
-	pub clipboard: ClipboardUtil
+	pub clipboard: ClipboardUtil,
+	pub global_mouse_pos_x: isize,
+	pub global_mouse_pos_y: isize
 }
 
 pub struct RenderState {
@@ -633,8 +635,10 @@ impl GameState {
 		}
 	}
 
-	fn mouse_move(&self, dest_x: isize, dest_y: isize, screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
+	fn mouse_move(&mut self, dest_x: isize, dest_y: isize, screen_width: usize, screen_height: usize, dest_size: &RenderSize) {
 		let (x, y) = self.convert_mouse_pos(dest_x, dest_y, screen_width, screen_height, dest_size);
+		self.global_mouse_pos_x = x;
+		self.global_mouse_pos_y = y;
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
@@ -746,7 +750,9 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		last_click_button: None,
 		last_click_x: None,
 		last_click_y: None,
-		clipboard: video.clipboard()
+		clipboard: video.clipboard(),
+		global_mouse_pos_x: 0,
+		global_mouse_pos_y: 0
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,

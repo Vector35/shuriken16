@@ -367,7 +367,11 @@ fn render_layer_with_blending(bounds: &BoundingRect, render_buf: &mut Vec<Vec<u3
 			if let Some(tile_ref) = tile {
 				// Grab tile data for the current animation frame, and get palette for tile
 				let tile_data = tile_ref.tile_set.data_for_time(tile_ref.tile_index, game.frame);
-				let palette = &tile_ref.tile_set.tiles[tile_ref.tile_index].palette;
+				let palette = if tile_ref.palette_override.is_some() {
+					&tile_ref.palette_override
+				} else {
+					&tile_ref.tile_set.tiles[tile_ref.tile_index].palette
+				};
 
 				// Compute rendering extents for current tile
 				let cur_left_pixel;

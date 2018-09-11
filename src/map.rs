@@ -3,7 +3,7 @@ extern crate serde_json;
 use std::io;
 use std::rc::Rc;
 use std::cmp::{min, max};
-use tile::TileSet;
+use tile::{TileSet, PaletteWithOffset};
 use asset;
 use asset::AssetNamespace;
 use actor::BoundingRect;
@@ -66,7 +66,8 @@ pub enum BlendMode {
 #[derive(Clone)]
 pub struct TileRef {
 	pub tile_set: Rc<TileSet>,
-	pub tile_index: usize
+	pub tile_index: usize,
+	pub palette_override: Option<PaletteWithOffset>
 }
 
 #[derive(Clone)]
@@ -106,6 +107,27 @@ pub struct Map {
 	pub layers: Vec<Rc<MapLayer>>,
 	pub main_layer: Option<usize>,
 	pub actors: Vec<MapActor>
+}
+
+impl TileRef {
+	pub fn new(tile_set: &Rc<TileSet>, tile_index: usize) -> TileRef {
+		TileRef {
+			tile_set: tile_set.clone(),
+			tile_index,
+			palette_override: None
+		}
+	}
+
+	pub fn with_palette(tile_set: &Rc<TileSet>, tile_index: usize, palette: &Rc<Palette>, offset: usize) -> TileRef {
+		TileRef {
+			tile_set: tile_set.clone(),
+			tile_index,
+			palette_override: Some(PaletteWithOffset {
+				palette: palette.clone(),
+				offset
+			})
+		}
+	}
 }
 
 impl MapLayer {
@@ -206,7 +228,7 @@ impl MapLayer {
 						if tile_set_index >= tile_sets.len() {
 							return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile set reference"));
 						}
-						Some(TileRef { tile_set: Rc::clone(&tile_sets[tile_set_index]), tile_index })
+						Some(TileRef::new(&tile_sets[tile_set_index], tile_index))
 					},
 					_ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid tile format"))
 				};

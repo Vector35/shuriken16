@@ -35,6 +35,7 @@ struct RawTileSet {
 	pub anim: Option<Vec<usize>>
 }
 
+#[derive(Clone)]
 pub struct PaletteWithOffset {
 	pub palette: Rc<Palette>,
 	pub offset: usize

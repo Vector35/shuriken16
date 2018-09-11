@@ -8,6 +8,7 @@ use std::any::Any;
 use game::GameState;
 use map::{MapLayer, TileRef, BlendMode};
 use tile::TileSet;
+use palette::Palette;
 use actor::BoundingRect;
 use sprite::{Sprite, SpriteAnimation};
 
@@ -190,6 +191,20 @@ impl UILayerContents {
 		self.sprites.clear();
 	}
 
+	pub fn clear_rect(&mut self, x: isize, y: isize, width: isize, height: isize) {
+		for y_offset in 0..height {
+			for x_offset in 0..width {
+				self.clear_tile(x + x_offset, y + y_offset);
+			}
+		}
+	}
+
+	pub fn clear_tile(&mut self, x: isize, y: isize) {
+		if (x >= 0) && (x < self.width()) && (y >= 0) && (y < self.height()) {
+			self.layer.set_tile(x as usize, y as usize, None);
+		}
+	}
+
 	pub fn write(&mut self, x: isize, y: isize, text: &str) {
 		let font_tile_set = match &self.font_tile_set {
 			Some(tile_set) => tile_set.clone(),
@@ -220,10 +235,46 @@ impl UILayerContents {
 			}
 
 			if (cur_x >= 0) && (cur_x < self.width()) {
-				self.layer.set_tile(cur_x as usize, y as usize, Some(TileRef {
-					tile_set: Rc::clone(&font_tile_set),
-					tile_index: font_index as usize
-				}));
+				self.layer.set_tile(cur_x as usize, y as usize, Some(TileRef::new(
+					&font_tile_set, font_index as usize)));
+			}
+			cur_x += 1;
+			offset_x += 1;
+		}
+	}
+
+	pub fn write_with_palette(&mut self, x: isize, y: isize, text: &str, palette: &Rc<Palette>, offset: usize) {
+		let font_tile_set = match &self.font_tile_set {
+			Some(tile_set) => tile_set.clone(),
+			None => return
+		};
+
+		if (y < 0) || (y >= self.height()) {
+			return;
+		}
+
+		let mut cur_x = x;
+		let mut offset_x = 0;
+		for ch in text.chars() {
+			if ch == '\t' {
+				let tab_width = 4 - (offset_x % 4);
+				cur_x += tab_width;
+				offset_x += tab_width;
+				continue;
+			}
+
+			let ord = ch as u32;
+			if ord < self.font_base as u32 {
+				continue;
+			}
+			let font_index = ord - self.font_base as u32;
+			if font_index as usize >= font_tile_set.tiles.len() {
+				continue;
+			}
+
+			if (cur_x >= 0) && (cur_x < self.width()) {
+				self.layer.set_tile(cur_x as usize, y as usize, Some(TileRef::with_palette(
+					&font_tile_set, font_index as usize, palette, offset)));
 			}
 			cur_x += 1;
 			offset_x += 1;
@@ -305,6 +356,10 @@ impl UILayer {
 
 	pub fn write(&mut self, x: isize, y: isize, text: &str) {
 		self.contents.write(x, y, text);
+	}
+
+	pub fn write_with_palette(&mut self, x: isize, y: isize, text: &str, palette: &Rc<Palette>, offset: usize) {
+		self.contents.write_with_palette(x, y, text, palette, offset);
 	}
 
 	pub fn set_tile(&mut self, x: isize, y: isize, tile: TileRef) {
@@ -536,7 +591,7 @@ impl UILayout for AnchorLayout {
 			};
 		} else {
 			width = bounds.width;
-			x = 0;
+			x = bounds.x;
 		}
 
 		let y;
@@ -550,7 +605,7 @@ impl UILayout for AnchorLayout {
 			};
 		} else {
 			height = bounds.height;
-			y = 0;
+			y = bounds.y;
 		}
 
 		let rect = BoundingRect { x, y, width, height };
@@ -743,7 +798,16 @@ impl UILayout for HorizontalBoxLayout {
 			}
 		}
 
-		let mut x = 0;
+		let mut total_width = 0;
+		for layout in &self.layouts {
+			let width = match layout.borrow().width() {
+				Some(layout_width) => layout_width,
+				None => fill_width - (fill_width % layout.borrow().tile_width())
+			};
+			total_width += width;
+		}
+
+		let mut x = (bounds.width - total_width) / 2;
 		for layout in &self.layouts {
 			let width = match layout.borrow().width() {
 				Some(layout_width) => layout_width,
@@ -838,11 +902,20 @@ impl UILayout for VerticalBoxLayout {
 			}
 		}
 
-		let mut y = 0;
+		let mut total_height = 0;
 		for layout in &self.layouts {
 			let height = match layout.borrow().height() {
 				Some(layout_height) => layout_height,
-				None => fill_height
+				None => fill_height - (fill_height % layout.borrow().tile_height())
+			};
+			total_height += height;
+		}
+
+		let mut y = (bounds.height - total_height) / 2;
+		for layout in &self.layouts {
+			let height = match layout.borrow().height() {
+				Some(layout_height) => layout_height,
+				None => fill_height - (fill_height % layout.borrow().tile_height())
 			};
 			layout.borrow().update(&BoundingRect {
 				x: bounds.x,

@@ -102,21 +102,12 @@ impl UILabelLayout {
 impl UILayerRenderer for UIButton {
 	fn update(&mut self, layer: &mut UILayerContents, _game_state: &GameState) {
 		layer.clear();
-		layer.set_tile(0, 0, TileRef {
-			tile_set: self.tile_set.clone(),
-			tile_index: 0
-		});
+		layer.set_tile(0, 0, TileRef::new(&self.tile_set, 0));
 		for x in 1..(layer.width() - 1) {
-			layer.set_tile(x, 0, TileRef {
-				tile_set: self.tile_set.clone(),
-				tile_index: 1
-			});
+			layer.set_tile(x, 0, TileRef::new(&self.tile_set, 1));
 		}
 		let x = layer.width() - 1;
-		layer.set_tile(x, 0, TileRef {
-			tile_set: self.tile_set.clone(),
-			tile_index: 2
-		});
+		layer.set_tile(x, 0, TileRef::new(&self.tile_set, 2));
 	}
 }
 
