@@ -31,6 +31,7 @@ pub struct ActorInfo {
 	pub velocity_x: isize,
 	pub velocity_y: isize,
 	pub collision_bounds: Option<BoundingRect>,
+	pub blocking_collision: bool,
 	pub sprites: Vec<SpriteWithOffset>,
 	pub destroyed: bool
 }
@@ -39,6 +40,7 @@ pub type ActorRef = Rc<RefCell<Box<Actor>>>;
 
 pub trait ActorAsAny {
 	fn as_any(&self) -> &Any;
+	fn as_any_mut(&mut self) -> &mut Any;
 }
 
 impl BoundingRect {
@@ -46,6 +48,64 @@ impl BoundingRect {
 		(other.x < (self.x + self.width)) && (self.x < (other.x + other.width)) &&
 			(other.y < (self.y + self.height)) && (self.y < (other.y + other.height))
 	}
+
+	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize) -> Option<isize> {
+		if (self.y >= (rect.y + rect.height)) || (rect.y >= (self.y + self.height)) {
+			// Not colliding on y axis
+			return None;
+		}
+
+		if (self.x < (rect.x + rect.width)) && (rect.x < (self.x + self.width)) {
+			// Already colliding at start
+			return Some(rect.x);
+		}
+
+		if ((rect.x + rect.width) <= self.x) && (final_x > rect.x) {
+			if (self.x - rect.width) < final_x {
+				// Found earlier collision moving to the right
+				return Some(self.x - rect.width);
+			}
+		} else if (rect.x >= (self.x + self.width)) && (final_x < rect.x) {
+			if (self.x + self.width) > final_x {
+				// Found earlier collision moving to the left
+				return Some(self.x + self.width);
+			}
+		}
+
+		None
+	}
+
+	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize) -> Option<isize> {
+		if (self.x >= (rect.x + rect.width)) || (rect.x >= (self.x + self.width)) {
+			// Not colliding on x axis
+			return None;
+		}
+
+		if (self.y < (rect.y + rect.height)) && (rect.y < (self.y + self.height)) {
+			// Already colliding at start
+			return Some(rect.y);
+		}
+
+		if ((rect.y + rect.height) <= self.y) && (final_y > rect.y) {
+			if (self.y - rect.height) < final_y {
+				// Found earlier collision moving down
+				return Some(self.y - rect.height);
+			}
+		} else if (rect.y >= (self.y + self.height)) && (final_y < rect.y) {
+			if (self.y + self.height) > final_y {
+				// Found earlier collision moving up
+				return Some(self.y + self.height);
+			}
+		}
+
+		None
+	}
+}
+
+pub enum MovementCollision {
+	None,
+	CollidedWithWorld,
+	CollidedWithActor(ActorRef)
 }
 
 pub trait Actor: ActorAsAny {
@@ -63,7 +123,7 @@ pub trait Actor: ActorAsAny {
 		self.actor_info().destroyed
 	}
 
-	fn move_with_collision(&mut self, game_state: &GameState) -> bool {
+	fn move_with_collision(&mut self, game_state: &GameState) -> MovementCollision {
 		let actor_info = self.actor_info_mut();
 		let mut full_x = (actor_info.x << 8) + actor_info.subpixel_x as isize;
 		let mut full_y = (actor_info.y << 8) + actor_info.subpixel_y as isize;
@@ -77,7 +137,7 @@ pub trait Actor: ActorAsAny {
 		let collision_y_offset;
 		let collision_width;
 		let collision_height;
-		let mut collided_with_world = false;
+		let mut collision_result = MovementCollision::None;
 		if let Some(collision_bounds) = &actor_info.collision_bounds {
 			collision_x_offset = collision_bounds.x;
 			collision_y_offset = collision_bounds.y;
@@ -96,7 +156,36 @@ pub trait Actor: ActorAsAny {
 					new_x = revised_x - collision_x_offset;
 					full_x = new_x << 8;
 					actor_info.velocity_x = 0;
-					collided_with_world = true;
+					collision_result = MovementCollision::CollidedWithWorld;
+				}
+
+				for actor_ref in &game_state.actors {
+					if let Ok(other_actor) = actor_ref.try_borrow() {
+						let other_actor_info = other_actor.actor_info();
+						if !other_actor_info.blocking_collision {
+							continue;
+						}
+						if let Some(other_bounds) = &other_actor_info.collision_bounds {
+							let other_collision_x_offset = other_bounds.x;
+							let other_collision_y_offset = other_bounds.y;
+							let other_collision_width = other_bounds.width;
+							let other_collision_height = other_bounds.height;
+
+							let mut other_bounds = BoundingRect {
+								x: other_actor_info.x + other_collision_x_offset,
+								y: other_actor_info.y + other_collision_y_offset,
+								width: other_collision_width,
+								height: other_collision_height
+							};
+
+							if let Some(revised_x) = other_bounds.sweep_collision_x(&bounds, new_x + collision_x_offset) {
+								new_x = revised_x - collision_x_offset;
+								full_x = new_x << 8;
+								actor_info.velocity_x = 0;
+								collision_result = MovementCollision::CollidedWithActor(actor_ref.clone());
+							}
+						}
+					}
 				}
 
 				bounds.x = new_x + collision_x_offset;
@@ -105,7 +194,36 @@ pub trait Actor: ActorAsAny {
 					new_y = revised_y - collision_y_offset;
 					full_y = new_y << 8;
 					actor_info.velocity_y = 0;
-					collided_with_world = true;
+					collision_result = MovementCollision::CollidedWithWorld;
+				}
+
+				for actor_ref in &game_state.actors {
+					if let Ok(other_actor) = actor_ref.try_borrow() {
+						let other_actor_info = other_actor.actor_info();
+						if !other_actor_info.blocking_collision {
+							continue;
+						}
+						if let Some(other_bounds) = &other_actor_info.collision_bounds {
+							let other_collision_x_offset = other_bounds.x;
+							let other_collision_y_offset = other_bounds.y;
+							let other_collision_width = other_bounds.width;
+							let other_collision_height = other_bounds.height;
+
+							let mut other_bounds = BoundingRect {
+								x: other_actor_info.x + other_collision_x_offset,
+								y: other_actor_info.y + other_collision_y_offset,
+								width: other_collision_width,
+								height: other_collision_height
+							};
+
+							if let Some(revised_y) = other_bounds.sweep_collision_y(&bounds, new_y + collision_y_offset) {
+								new_y = revised_y - collision_y_offset;
+								full_y = new_y << 8;
+								actor_info.velocity_y = 0;
+								collision_result = MovementCollision::CollidedWithActor(actor_ref.clone());
+							}
+						}
+					}
 				}
 			}
 		}
@@ -115,7 +233,7 @@ pub trait Actor: ActorAsAny {
 		actor_info.subpixel_x = (full_x & 0xff) as u8;
 		actor_info.subpixel_y = (full_y & 0xff) as u8;
 
-		collided_with_world
+		collision_result
 	}
 
 	fn check_for_actor_collision(&mut self, game_state: &GameState) -> Vec<ActorRef> {
@@ -162,14 +280,23 @@ pub trait Actor: ActorAsAny {
 		collided_actors
 	}
 
+	fn before_move(&mut self, _game_state: &GameState) {}
+	fn after_move(&mut self, _game_state: &GameState) {}
+
 	fn apply_move(&mut self, game_state: &GameState) {
-		if self.move_with_collision(game_state) {
-			self.on_collide_with_world(game_state);
+		self.before_move(game_state);
+
+		match self.move_with_collision(game_state) {
+			MovementCollision::CollidedWithWorld => self.on_collide_with_world(game_state),
+			MovementCollision::CollidedWithActor(actor) => self.on_collide_with_actor(&actor, game_state),
+			_ => ()
 		}
 
 		for actor in self.check_for_actor_collision(game_state) {
 			self.on_collide_with_actor(&actor, game_state);
 		}
+
+		self.after_move(game_state);
 	}
 
 	fn tick(&mut self, game_state: &GameState) {
@@ -277,6 +404,7 @@ impl ActorInfo {
 			velocity_x: 0,
 			velocity_y: 0,
 			collision_bounds: None,
+			blocking_collision: false,
 			sprites: Vec::new(),
 			destroyed: false
 		}
@@ -285,6 +413,10 @@ impl ActorInfo {
 
 impl<T: Actor + 'static> ActorAsAny for T {
 	fn as_any(&self) -> &Any {
+		self
+	}
+
+	fn as_any_mut(&mut self) -> &mut Any {
 		self
 	}
 }
