@@ -18,6 +18,7 @@
 #include "floatfieldtype.h"
 #include "choicefieldtype.h"
 #include "mapfieldtype.h"
+#include "jsonfieldtype.h"
 
 
 QString GetRootPath()
@@ -97,6 +98,7 @@ void InitEditor()
 	FloatFieldType::Register();
 	ChoiceFieldType::Register();
 	MapFieldType::Register();
+	JsonFieldType::Register();
 }
 
 

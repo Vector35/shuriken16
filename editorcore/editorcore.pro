@@ -70,6 +70,7 @@ SOURCES += \
 	floatfieldtype.cpp \
 	choicefieldtype.cpp \
 	mapfieldtype.cpp \
+	jsonfieldtype.cpp \
 	json/jsoncpp.cpp
 
 HEADERS += \
@@ -134,4 +135,5 @@ HEADERS += \
 	floatfieldtype.h \
 	choicefieldtype.h \
 	mapfieldtype.h \
+	jsonfieldtype.h \
 	json/json.h
