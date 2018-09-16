@@ -51,34 +51,29 @@ impl Camera {
 
 		if (x - *scroll_x) < follow_left {
 			let new_x = x - follow_left;
-			if new_x >= self.map_bounds.x {
-				target_scroll_x = new_x;
-			} else {
-				target_scroll_x = self.map_bounds.x;
-			}
+			target_scroll_x = new_x;
 		} else if (x - *scroll_x) > follow_right {
 			let new_x = x - follow_right;
-			if new_x <= (self.map_bounds.x + self.map_bounds.width - render_size.width as isize) {
-				target_scroll_x = new_x;
-			} else {
-				target_scroll_x = self.map_bounds.x + self.map_bounds.width - render_size.width as isize;
-			}
+			target_scroll_x = new_x;
 		}
 
 		if (y - *scroll_y) < follow_top {
 			let new_y = y - follow_top;
-			if new_y >= self.map_bounds.y {
-				target_scroll_y = new_y;
-			} else {
-				target_scroll_y = self.map_bounds.y;
-			}
+			target_scroll_y = new_y;
 		} else if (y - *scroll_y) > follow_bottom {
 			let new_y = y - follow_bottom;
-			if new_y <= (self.map_bounds.y + self.map_bounds.height - render_size.height as isize) {
-				target_scroll_y = new_y;
-			} else {
-				target_scroll_y = self.map_bounds.y + self.map_bounds.height - render_size.height as isize;
-			}
+			target_scroll_y = new_y;
+		}
+
+		if target_scroll_x < self.map_bounds.x {
+			target_scroll_x = self.map_bounds.x;
+		} else if target_scroll_x > (self.map_bounds.x + self.map_bounds.width - render_size.width as isize) {
+			target_scroll_x = self.map_bounds.x + self.map_bounds.width - render_size.width as isize;
+		}
+		if target_scroll_y < self.map_bounds.y {
+			target_scroll_y = self.map_bounds.y;
+		} else if target_scroll_y > (self.map_bounds.y + self.map_bounds.height - render_size.height as isize) {
+			target_scroll_y = self.map_bounds.y + self.map_bounds.height - render_size.height as isize;
 		}
 
 		if self.force_snap {

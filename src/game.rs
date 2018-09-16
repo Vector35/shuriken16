@@ -170,6 +170,11 @@ impl GameState {
 				}
 			}
 		}
+		if let Some(camera) = &mut self.camera {
+			if let Some(bounds) = map.bounds() {
+				camera.map_bounds = bounds;
+			}
+		}
 	}
 
 	pub fn load_map(&self, map: &Rc<Map>) {
