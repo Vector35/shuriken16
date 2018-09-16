@@ -66,6 +66,7 @@ SOURCES += \
 	actortypeview.cpp \
 	addactortypefielddialog.cpp \
 	stringfieldtype.cpp \
+	textfieldtype.cpp \
 	intfieldtype.cpp \
 	floatfieldtype.cpp \
 	choicefieldtype.cpp \
@@ -131,6 +132,7 @@ HEADERS += \
 	actortypeview.h \
 	addactortypefielddialog.h \
 	stringfieldtype.h \
+	textfieldtype.h \
 	intfieldtype.h \
 	floatfieldtype.h \
 	choicefieldtype.h \

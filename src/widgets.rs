@@ -19,6 +19,16 @@ pub struct UILabelLayout {
 	pub tile_height: isize
 }
 
+pub struct UIWrappingLabel {
+	pub lines: Vec<String>
+}
+
+pub struct UIWrappingLabelLayout {
+	pub label: UILayerRef,
+	pub tile_width: isize,
+	pub tile_height: isize
+}
+
 pub trait UIButtonHandler {
 	fn on_click(&self, game_state: &GameState);
 }
@@ -96,6 +106,133 @@ impl UILabelLayout {
 			}
 		}
 		"".to_string()
+	}
+}
+
+impl UILayerRenderer for UIWrappingLabel {
+	fn update(&mut self, layer: &mut UILayerContents, _game_state: &GameState) {
+		layer.clear();
+		for (i, line) in self.lines.iter().enumerate() {
+			layer.write(0, i as isize, &line);
+		}
+	}
+}
+
+impl UIWrappingLabel {
+	pub fn wrap_text(text: &str, width: usize) -> Vec<String> {
+		let mut lines = Vec::new();
+		let mut cur_line = "".to_string();
+		let mut pending_word = "".to_string();
+		let mut x = 0;
+		for ch in text.chars() {
+			if ch == '\n' {
+				cur_line.push_str(&pending_word);
+				lines.push(cur_line);
+				cur_line = "".to_string();
+				pending_word = "".to_string();
+				x = 0;
+			} else if (ch == ' ') || (ch == '\t') {
+				cur_line.push_str(&pending_word);
+				cur_line.push(ch);
+				pending_word = "".to_string();
+				if ch == '\t' {
+					x += 4 - (x % 4);
+				} else {
+					x += 1;
+				}
+			} else if (cur_line.len() > 0) && (x >= width) {
+				pending_word.push(ch);
+				lines.push(cur_line);
+				cur_line = "".to_string();
+				x = pending_word.len();
+			} else {
+				pending_word.push(ch);
+				x += 1;
+			}
+		}
+		cur_line.push_str(&pending_word);
+		if cur_line.len() > 0 {
+			lines.push(cur_line);
+		}
+		lines
+	}
+
+	pub fn new_ui_layer(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str, width: usize) -> UILayerRef {
+		let mut label = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
+		let renderer = UIWrappingLabel {
+			lines: UIWrappingLabel::wrap_text(text, width)
+		};
+		label.renderer = Some(Box::new(renderer));
+		label.set_font(font_tile_set.clone(), font_base);
+		ui::to_layer_ref(label)
+	}
+
+	pub fn new_ui_layout(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str, width: usize) -> UIWrappingLabelLayout {
+		UIWrappingLabelLayout {
+			label: UIWrappingLabel::new_ui_layer(font_tile_set, font_base, text, width),
+			tile_width: font_tile_set.width as isize,
+			tile_height: font_tile_set.height as isize
+		}
+	}
+}
+
+impl UILayout for UIWrappingLabelLayout {
+	fn width(&self) -> Option<isize> {
+		let mut width = 0;
+		for line in self.lines() {
+			let mut x = 0;
+			for ch in line.chars() {
+				if ch == '\t' {
+					x += 4 - (x % 4);
+				} else {
+					x += 1;
+				}
+			}
+			if x > width {
+				width = x;
+			}
+		}
+		Some(self.tile_width * width as isize)
+	}
+
+	fn height(&self) -> Option<isize> {
+		Some(self.tile_height * self.lines().len() as isize)
+	}
+
+	fn tile_width(&self) -> isize { self.tile_width }
+	fn tile_height(&self) -> isize { self.tile_height }
+
+	fn update(&self, bounds: &BoundingRect) -> BoundingRect {
+		let width = match self.width() {
+			Some(width) => width,
+			None => 0
+		};
+		let height = match self.height() {
+			Some(height) => height,
+			None => 0
+		};
+		let rect = BoundingRect {
+			x: bounds.x,
+			y: bounds.y,
+			width,
+			height
+		};
+		self.label.borrow_mut().set_target_rect(&rect);
+		rect
+	}
+
+	fn layers(&self) -> Vec<UILayerRef> { [self.label.clone()].to_vec() }
+}
+
+impl UIWrappingLabelLayout {
+	pub fn lines(&self) -> Vec<String> {
+		let label = self.label.borrow();
+		if let Some(renderer) = &label.renderer {
+			if let Some(label) = renderer.as_any().downcast_ref::<UIWrappingLabel>() {
+				return label.lines.clone()
+			}
+		}
+		Vec::new()
 	}
 }
 

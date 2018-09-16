@@ -14,6 +14,7 @@
 #include "theme.h"
 #include "editor.h"
 #include "stringfieldtype.h"
+#include "textfieldtype.h"
 #include "intfieldtype.h"
 #include "floatfieldtype.h"
 #include "choicefieldtype.h"
@@ -94,6 +95,7 @@ void InitEditor()
 
 	// Register built-in field types for actors
 	StringFieldType::Register();
+	TextFieldType::Register();
 	IntFieldType::Register();
 	FloatFieldType::Register();
 	ChoiceFieldType::Register();
