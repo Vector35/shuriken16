@@ -33,7 +33,8 @@ pub struct ActorInfo {
 	pub collision_bounds: Option<BoundingRect>,
 	pub blocking_collision: bool,
 	pub sprites: Vec<SpriteWithOffset>,
-	pub destroyed: bool
+	pub destroyed: bool,
+	pub health: i32
 }
 
 pub type ActorRef = Rc<RefCell<Box<Actor>>>;
@@ -387,6 +388,21 @@ pub trait Actor: ActorAsAny {
 
 	fn get_camera_focus_offset(&self) -> (isize, isize) { (0, 0) }
 
+	fn adjust_health(&mut self, amount: i32) {
+		if self.actor_info().health <= 0 {
+			return;
+		}
+		let new_health = self.actor_info().health.saturating_add(amount);
+		self.actor_info_mut().health = new_health;
+		if new_health <= 0 {
+			self.on_death();
+		}
+	}
+
+	fn damage(&mut self, _damage_type: &str, _amount: i32) {}
+
+	fn on_death(&mut self) {}
+
 	fn on_button_down(&mut self, _name: &str, _game_state: &GameState) {}
 	fn on_button_up(&mut self, _name: &str, _game_state: &GameState) {}
 	fn on_axis_changed(&mut self, _name: &str, _value: f32, _game_state: &GameState) {}
@@ -406,7 +422,8 @@ impl ActorInfo {
 			collision_bounds: None,
 			blocking_collision: false,
 			sprites: Vec::new(),
-			destroyed: false
+			destroyed: false,
+			health: 100
 		}
 	}
 }
