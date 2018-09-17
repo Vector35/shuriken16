@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use actor::{ActorRef, BoundingRect};
 use render::RenderSize;
 
+#[derive(Clone)]
 pub struct Camera {
 	pub map_bounds: BoundingRect,
 	pub follow_margin_ratio_x: f32,

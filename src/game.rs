@@ -45,6 +45,11 @@ pub struct AddActorEvent {
 }
 
 #[derive(Clone)]
+pub struct AddPersistentActorEvent {
+	actor: ActorRef
+}
+
+#[derive(Clone)]
 pub struct AddUILayoutEvent {
 	layout: UILayoutRef
 }
@@ -55,11 +60,31 @@ pub struct RemoveUILayoutEvent {
 }
 
 #[derive(Clone)]
+pub struct SetControlledActorEvent {
+	actor: Option<ActorRef>
+}
+
+#[derive(Clone)]
+pub struct SetCameraEvent {
+	camera: Option<Camera>
+}
+
+#[derive(Clone)]
+pub struct SetScrollEvent {
+	x: isize,
+	y: isize
+}
+
+#[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
 	AddActor(AddActorEvent),
+	AddPersistentActor(AddPersistentActorEvent),
 	AddUILayout(AddUILayoutEvent),
 	RemoveUILayout(RemoveUILayoutEvent),
+	SetControlledActor(SetControlledActorEvent),
+	SetCamera(SetCameraEvent),
+	SetScroll(SetScrollEvent),
 	FadeOut,
 	FadeIn
 }
@@ -148,10 +173,11 @@ impl GameState {
 		actor_ref
 	}
 
-	pub fn add_persistent_actor(&mut self, actor: Box<Actor>) -> ActorRef {
+	pub fn add_persistent_actor(&self, actor: Box<Actor>) -> ActorRef {
 		let actor_ref = ActorRef::new(RefCell::new(actor));
-		self.actors.push(actor_ref.clone());
-		self.persistent_actors.push(actor_ref.clone());
+		self.pending_events.borrow_mut().push(PendingEvent::AddPersistentActor(AddPersistentActorEvent {
+			actor: actor_ref.clone()
+		}));
 		actor_ref
 	}
 
@@ -238,12 +264,22 @@ impl GameState {
 		});
 	}
 
-	pub fn set_controlled_actor(&mut self, actor: &ActorRef) {
-		self.controlled_actor = Some(actor.clone());
+	pub fn set_controlled_actor(&self, actor: &ActorRef) {
+		self.pending_events.borrow_mut().push(PendingEvent::SetControlledActor(SetControlledActorEvent {
+			actor: Some(actor.clone())
+		}));
 	}
 
-	pub fn set_camera(&mut self, camera: Option<Camera>) {
-		self.camera = camera;
+	pub fn set_camera(&self, camera: Option<Camera>) {
+		self.pending_events.borrow_mut().push(PendingEvent::SetCamera(SetCameraEvent {
+			camera
+		}));
+	}
+
+	pub fn set_scroll(&self, x: isize, y: isize) {
+		self.pending_events.borrow_mut().push(PendingEvent::SetScroll(SetScrollEvent {
+			x, y
+		}));
 	}
 
 	fn get_ui_input_layers(&self) -> Vec<UILayerRef> {
@@ -854,6 +890,10 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			PendingEvent::AddActor(add_actor) => {
 				game_state.actors.push(add_actor.actor);
 			},
+			PendingEvent::AddPersistentActor(add_actor) => {
+				game_state.actors.push(add_actor.actor.clone());
+				game_state.persistent_actors.push(add_actor.actor);
+			},
 			PendingEvent::AddUILayout(add_ui_layout) => {
 				game_state.ui_layouts.push(add_ui_layout.layout);
 			},
@@ -865,6 +905,16 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 					}
 				}
 				game_state.ui_layouts = new_ui_layouts;
+			},
+			PendingEvent::SetControlledActor(controlled_actor) => {
+				game_state.controlled_actor = controlled_actor.actor;
+			},
+			PendingEvent::SetCamera(camera) => {
+				game_state.camera = camera.camera;
+			},
+			PendingEvent::SetScroll(scroll) => {
+				game_state.scroll_x = scroll.x;
+				game_state.scroll_y = scroll.y;
 			},
 			PendingEvent::FadeIn => {
 				game_state.target_fade_alpha = 0;
