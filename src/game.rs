@@ -78,8 +78,10 @@ pub struct SetScrollEvent {
 #[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
+	UnloadMap,
 	AddActor(AddActorEvent),
 	AddPersistentActor(AddPersistentActorEvent),
+	ClearPersistentActors,
 	AddUILayout(AddUILayoutEvent),
 	RemoveUILayout(RemoveUILayoutEvent),
 	SetControlledActor(SetControlledActorEvent),
@@ -181,6 +183,10 @@ impl GameState {
 		actor_ref
 	}
 
+	pub fn clear_persistent_actors(&self) {
+		self.pending_events.borrow_mut().push(PendingEvent::ClearPersistentActors);
+	}
+
 	pub fn register_actor_loader(&mut self, name: &str,
 		handler: Box<Fn(&MapActor, &AssetNamespace) -> Option<Box<Actor>>>) {
 		self.actor_loaders.insert(name.to_string(), handler);
@@ -209,9 +215,8 @@ impl GameState {
 		}));
 	}
 
-	pub fn unload_map(&mut self) {
-		self.actors.clear();
-		self.map = None;
+	pub fn unload_map(&self) {
+		self.pending_events.borrow_mut().push(PendingEvent::UnloadMap);
 	}
 
 	pub fn fade_out(&self) {
@@ -887,12 +892,19 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 					camera.force_snap = true;
 				}
 			},
+			PendingEvent::UnloadMap => {
+				game_state.actors.clear();
+				game_state.map = None;
+			},
 			PendingEvent::AddActor(add_actor) => {
 				game_state.actors.push(add_actor.actor);
 			},
 			PendingEvent::AddPersistentActor(add_actor) => {
 				game_state.actors.push(add_actor.actor.clone());
 				game_state.persistent_actors.push(add_actor.actor);
+			},
+			PendingEvent::ClearPersistentActors => {
+				game_state.persistent_actors.clear();
 			},
 			PendingEvent::AddUILayout(add_ui_layout) => {
 				game_state.ui_layouts.push(add_ui_layout.layout);
