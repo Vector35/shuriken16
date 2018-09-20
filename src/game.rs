@@ -3,6 +3,10 @@ extern crate byteorder;
 
 #[cfg(target_os = "emscripten")]
 use emscripten::emscripten;
+#[cfg(target_os = "emscripten")]
+use std::os::raw::c_char;
+#[cfg(not(target_os = "emscripten"))]
+use self::sdl2::filesystem;
 
 use self::sdl2::EventPump;
 use self::sdl2::event::{Event, WindowEvent};
@@ -121,7 +125,8 @@ pub struct GameState {
 	pub last_click_y: Option<isize>,
 	pub clipboard: ClipboardUtil,
 	pub global_mouse_pos_x: isize,
-	pub global_mouse_pos_y: isize
+	pub global_mouse_pos_y: isize,
+	pub save_slot: RefCell<usize>
 }
 
 pub struct RenderState {
@@ -798,7 +803,8 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		last_click_y: None,
 		clipboard: video.clipboard(),
 		global_mouse_pos_x: 0,
-		global_mouse_pos_y: 0
+		global_mouse_pos_y: 0,
+		save_slot: RefCell::new(0)
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -999,6 +1005,28 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	game_state.frame += 1;
 }
 
+#[allow(unused_variables)]
+pub fn user_data_path(company: &str, title: &str) -> Option<String> {
+	#[cfg(target_os = "emscripten")]
+	return Some("/data".to_string());
+
+	#[cfg(not(target_os = "emscripten"))]
+	return match filesystem::pref_path(company, title) {
+		Ok(path) => Some(path),
+		_ => None
+	};
+}
+
+pub fn commit_filesystem_changes() {
+	#[cfg(target_os = "emscripten")]
+	{
+		let sync = concat!("FS.syncfs(function(err) { assert(!err); })", "\0");
+		unsafe {
+			emscripten::emscripten_asm_const(sync as *const _ as *const c_char);
+		}
+	}
+}
+
 // Emscripten is event loop based, so state must be stored as a global variable or memory
 // corruption will occur
 #[cfg(target_os = "emscripten")]
@@ -1012,6 +1040,15 @@ static mut RENDER_STATE: Option<RenderState> = None;
 pub fn run(mut game: Box<Game>) {
 	let title = game.title();
 	let target = game.target_resolution();
+
+	// For emscripten target, initialize filesystem
+	#[cfg(target_os = "emscripten")]
+	{
+		let mount = concat!("FS.mkdir('/data'); FS.mount(IDBFS, {}, '/data'); FS.syncfs(true, function(err) { assert(!err); })", "\0");
+		unsafe {
+			emscripten::emscripten_asm_const(mount as *const _ as *const c_char);
+		}
+	}
 
 	// Initialize SDL and game state
 	#[cfg(target_os = "emscripten")]

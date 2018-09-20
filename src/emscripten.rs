@@ -3,7 +3,7 @@
 pub mod emscripten {
 	use std::cell::RefCell;
 	use std::ptr::null_mut;
-	use std::os::raw::{c_int, c_void};
+	use std::os::raw::{c_int, c_void, c_char};
 
 	#[allow(non_camel_case_types)]
 	type em_callback_func = unsafe extern "C" fn();
@@ -11,6 +11,7 @@ pub mod emscripten {
 	extern "C" {
 		pub fn emscripten_set_main_loop(func: em_callback_func, fps: c_int, simulate_infinite_loop: c_int);
 		pub fn emscripten_get_element_css_size(target: *const u8, width: *mut f64, height: *mut f64);
+		pub fn emscripten_asm_const(code: *const c_char);
 	}
 
 	thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut c_void> = RefCell::new(null_mut()));
