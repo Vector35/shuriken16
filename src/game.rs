@@ -17,6 +17,8 @@ use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::rect::Rect;
 use self::sdl2::render::{Canvas, Texture};
 use self::sdl2::video::Window;
+#[cfg(target_os = "macos")]
+use self::sdl2::video::WindowPos;
 use self::sdl2::clipboard::ClipboardUtil;
 use self::byteorder::{ByteOrder, LittleEndian};
 use std::process;
@@ -736,7 +738,16 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	// Create an SDL context
 	let sdl = sdl2::init().unwrap();
 	let video = sdl.video().unwrap();
-	let window = video.window(title, screen_width as u32, screen_height as u32).resizable().build().unwrap();
+
+	let window;
+	#[cfg(target_os = "macos")] {
+		// Hack for Mojave, resizing the window will permanently break the game
+		window = video.window(title, screen_width as u32, screen_height as u32).build().unwrap();
+	}
+	#[cfg(not(target_os = "macos"))] {
+		window = video.window(title, screen_width as u32, screen_height as u32).resizable().build().unwrap();
+	}
+
 	let window_size = window.size();
 	screen_width = window_size.0 as usize;
 	screen_height = window_size.1 as usize;
@@ -1001,6 +1012,13 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 		((render_state.screen_height - render_state.dest_size.height) / 2) as i32,
 		render_state.dest_size.width as u32, render_state.dest_size.height as u32)).unwrap();
 	render_state.canvas.present();
+
+	#[cfg(target_os = "macos")] {
+		// Hack for Mojave, without this we're doomed to a black screen
+		if game_state.frame == 0 {
+			render_state.canvas.window_mut().set_position(WindowPos::Centered, WindowPos::Centered);
+		}
+	}
 
 	game_state.frame += 1;
 }
