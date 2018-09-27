@@ -171,6 +171,8 @@ pub trait UIInputHandler {
 	fn on_key_down(&self, _key: Keycode, _key_mod: Mod, _game_state: &GameState) {}
 	fn on_key_up(&self, _key: Keycode, _key_mod: Mod, _game_state: &GameState) {}
 	fn on_text_input(&self, _text: &str, _game_state: &GameState) {}
+
+	fn has_focus(&self) -> bool { true }
 }
 
 impl UILayerContents {

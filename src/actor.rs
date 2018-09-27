@@ -409,6 +409,8 @@ pub trait Actor: ActorAsAny {
 
 	fn on_collide_with_world(&mut self, _game_state: &GameState) {}
 	fn on_collide_with_actor(&mut self, _actor: &ActorRef, _game_state: &GameState) {}
+
+	fn on_persistent_actor_removed(&mut self, _game_state: &GameState) {}
 }
 
 impl ActorInfo {

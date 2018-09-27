@@ -324,12 +324,14 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			for layer in ui_input_layers {
 				let layer_ref = layer.borrow();
 				if let Some(input_handler) = &layer_ref.input_handler {
 					if input_handler.raw_keyboard_input() {
 						input_handler.on_key_down(key, key_mod, &self);
-					} else {
+						handled = true;
+					} else if input_handler.has_focus() {
 						let action = if let Some(action) = self.ui_key_bindings.get(&key) {
 							Some(action.clone())
 						} else if let Some(action) = self.key_bindings.get(&key) {
@@ -341,10 +343,13 @@ impl GameState {
 						if let Some(action) = action {
 							input_handler.on_button_down(&action, &self);
 						}
+						handled = true;
 					}
 				}
 			}
-			return;
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.key_bindings.get(&key) {
@@ -358,12 +363,14 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			for layer in ui_input_layers {
 				let layer_ref = layer.borrow();
 				if let Some(input_handler) = &layer_ref.input_handler {
 					if input_handler.raw_keyboard_input() {
 						input_handler.on_key_up(key, key_mod, &self);
-					} else {
+						handled = true;
+					} else if input_handler.has_focus() {
 						let action = if let Some(action) = self.ui_key_bindings.get(&key) {
 							Some(action.clone())
 						} else if let Some(action) = self.key_bindings.get(&key) {
@@ -375,10 +382,13 @@ impl GameState {
 						if let Some(action) = action {
 							input_handler.on_button_up(&action, &self);
 						}
+						handled = true;
 					}
 				}
 			}
-			return;
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.key_bindings.get(&key) {
@@ -418,6 +428,7 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			let action = if let Some(action) = self.ui_axis_bindings.get(&axis) {
 				Some(action.clone())
 			} else if let Some(action) = self.axis_bindings.get(&axis) {
@@ -430,11 +441,17 @@ impl GameState {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_axis_changed(&action, adjusted_value, &self);
+						if input_handler.has_focus() {
+							input_handler.on_axis_changed(&action, adjusted_value, &self);
+							handled = true;
+						}
 					}
 				}
 			}
-			return;
+
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.axis_bindings.get(&axis) {
@@ -448,6 +465,7 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			let action = if let Some(action) = self.ui_button_bindings.get(&button) {
 				Some(action.clone())
 			} else if let Some(action) = self.button_bindings.get(&button) {
@@ -460,11 +478,17 @@ impl GameState {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_down(&action, &self);
+						if input_handler.has_focus() {
+							input_handler.on_button_down(&action, &self);
+							handled = true;
+						}
 					}
 				}
 			}
-			return;
+
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.button_bindings.get(&button) {
@@ -478,6 +502,7 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			let action = if let Some(action) = self.ui_button_bindings.get(&button) {
 				Some(action.clone())
 			} else if let Some(action) = self.button_bindings.get(&button) {
@@ -490,11 +515,17 @@ impl GameState {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						input_handler.on_button_up(&action, &self);
+						if input_handler.has_focus() {
+							input_handler.on_button_up(&action, &self);
+							handled = true;
+						}
 					}
 				}
 			}
-			return;
+
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.button_bindings.get(&button) {
@@ -533,6 +564,7 @@ impl GameState {
 		let ui_input_layers = self.get_ui_input_layers();
 		if ui_input_layers.len() > 0 {
 			// Direct input at active UI handlers
+			let mut handled = false;
 			let action = if let Some(action) = self.ui_hat_bindings.get(&hat) {
 				Some(action.clone())
 			} else if let Some(action) = self.hat_bindings.get(&hat) {
@@ -545,30 +577,36 @@ impl GameState {
 				for layer in ui_input_layers {
 					let layer_ref = layer.borrow();
 					if let Some(input_handler) = &layer_ref.input_handler {
-						if left {
-							input_handler.on_button_down(&action.left, &self);
-						} else {
-							input_handler.on_button_up(&action.left, &self);
-						}
-						if right {
-							input_handler.on_button_down(&action.right, &self);
-						} else {
-							input_handler.on_button_up(&action.right, &self);
-						}
-						if up {
-							input_handler.on_button_down(&action.up, &self);
-						} else {
-							input_handler.on_button_up(&action.up, &self);
-						}
-						if down {
-							input_handler.on_button_down(&action.down, &self);
-						} else {
-							input_handler.on_button_up(&action.down, &self);
+						if input_handler.has_focus() {
+							if left {
+								input_handler.on_button_down(&action.left, &self);
+							} else {
+								input_handler.on_button_up(&action.left, &self);
+							}
+							if right {
+								input_handler.on_button_down(&action.right, &self);
+							} else {
+								input_handler.on_button_up(&action.right, &self);
+							}
+							if up {
+								input_handler.on_button_down(&action.up, &self);
+							} else {
+								input_handler.on_button_up(&action.up, &self);
+							}
+							if down {
+								input_handler.on_button_down(&action.down, &self);
+							} else {
+								input_handler.on_button_up(&action.down, &self);
+							}
+							handled = true;
 						}
 					}
 				}
 			}
-			return;
+
+			if handled {
+				return;
+			}
 		}
 
 		if let Some(action) = self.hat_bindings.get(&hat) {
@@ -954,6 +992,9 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 					game_state.persistent_actors.push(add_actor.actor);
 				},
 				PendingEvent::ClearPersistentActors => {
+					for actor in &game_state.persistent_actors {
+						actor.borrow_mut().on_persistent_actor_removed(&game_state);
+					}
 					game_state.persistent_actors.clear();
 				},
 				PendingEvent::AddUILayout(add_ui_layout) => {

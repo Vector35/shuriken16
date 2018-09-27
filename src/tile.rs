@@ -197,7 +197,7 @@ impl TileSet {
 	}
 
 	pub fn push(&mut self, tile: Tile) {
-		assert!(tile.data.len() != (self.frames * self.single_frame_size), "Tile data size is incorrect for its tile set");
+		assert!(tile.data.len() == (self.frames * self.single_frame_size), "Tile data size is incorrect for its tile set");
 		self.tiles.push(tile);
 	}
 
