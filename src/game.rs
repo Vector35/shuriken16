@@ -25,6 +25,8 @@ use std::process;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::{Instant, Duration};
+use std::thread::sleep;
 use render;
 use render::{RenderSize, ResolutionTarget};
 use map::{Map, MapActor};
@@ -111,6 +113,7 @@ pub struct GameState {
 	pub fade_alpha: u8,
 	pub target_fade_alpha: u8,
 	pub frame: usize,
+	pub rendered_frame: usize,
 	pub key_bindings: HashMap<Keycode, String>,
 	pub axis_bindings: HashMap<u8, String>,
 	pub button_bindings: HashMap<u8, String>,
@@ -137,10 +140,16 @@ pub struct RenderState {
 	_joystick: Option<Joystick>,
 	screen_width: usize,
 	screen_height: usize,
+	window_width: usize,
+	window_height: usize,
 	resolution_target: ResolutionTarget,
 	dest_size: RenderSize,
+	window_dest_size: RenderSize,
 	render_buf: Vec<Vec<u32>>,
 	texture: Texture,
+	last_frame_instant: Instant,
+	frame_pace_error_ns: i64,
+	frame_skip_count: usize
 }
 
 pub trait Game {
@@ -591,8 +600,8 @@ impl GameState {
 
 	fn convert_mouse_pos(&self, x: isize, y: isize, screen_width: usize, screen_height: usize,
 		dest_size: &RenderSize) -> (isize, isize) {
-		let x_offset = ((screen_width - dest_size.width) / 2) as isize;
-		let y_offset = ((screen_height - dest_size.height) / 2) as isize;
+		let x_offset = (screen_width as isize - dest_size.width as isize) / 2;
+		let y_offset = (screen_height as isize - dest_size.height as isize) / 2;
 		let dest_x = x - x_offset;
 		let dest_y = y - y_offset;
 		let final_x = (dest_x * self.render_size.width as isize) / dest_size.width as isize;
@@ -742,20 +751,28 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	let window;
 	#[cfg(target_os = "macos")] {
 		// Hack for Mojave, resizing the window will permanently break the game
-		window = video.window(title, screen_width as u32, screen_height as u32).build().unwrap();
+		window = video.window(title, screen_width as u32, screen_height as u32).allow_highdpi().build().unwrap();
 	}
 	#[cfg(not(target_os = "macos"))] {
-		window = video.window(title, screen_width as u32, screen_height as u32).resizable().build().unwrap();
+		window = video.window(title, screen_width as u32, screen_height as u32).resizable().allow_highdpi().build().unwrap();
 	}
 
 	let window_size = window.size();
-	screen_width = window_size.0 as usize;
-	screen_height = window_size.1 as usize;
+	let window_width = window_size.0 as usize;
+	let window_height = window_size.1 as usize;
+
+	let draw_size = window.drawable_size();
+	screen_width = draw_size.0 as usize;
+	screen_height = draw_size.1 as usize;
 
 	let canvas = window.into_canvas().accelerated().present_vsync().build().unwrap();
 
 	// Compute internal resolution based on provided target resolution information
 	let (render_size, dest_size) = target.compute_render_sizes(screen_width, screen_height);
+	let window_dest_size = RenderSize {
+		width: (dest_size.width * window_width) / screen_width,
+		height: (dest_size.height * window_height) / screen_height
+	};
 
 	// Create texture for rendering each frame
 	let texture = canvas.create_texture_streaming(PixelFormatEnum::RGB888,
@@ -798,6 +815,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		},
 		target_fade_alpha: 0,
 		frame: 0,
+		rendered_frame: 0,
 		key_bindings: HashMap::new(),
 		axis_bindings: HashMap::new(),
 		button_bindings: HashMap::new(),
@@ -820,9 +838,13 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
 		screen_width, screen_height,
+		window_width, window_height,
 		resolution_target: target,
-		dest_size,
+		dest_size, window_dest_size,
 		render_buf, texture,
+		last_frame_instant: Instant::now(),
+		frame_pace_error_ns: 0,
+		frame_skip_count: 0
 	};
 	(game, render_state)
 }
@@ -830,7 +852,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &mut RenderState) {
 	#[cfg(target_os = "emscripten")] {
 		let (cur_width, cur_height) = emscripten::get_canvas_size();
-		if (cur_width != render_state.screen_width) || (cur_height != render_state.screen_height) {
+		if (cur_width != render_state.window_width) || (cur_height != render_state.window_height) {
 			render_state.canvas.window_mut().set_size(cur_width as u32, cur_height as u32).unwrap();
 		}
 	}
@@ -854,14 +876,14 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				game_state.hat_changed(hat_idx, state),
 
 			Event::MouseButtonDown {x, y, mouse_btn, ..} =>
-				game_state.mouse_button_down(x as isize, y as isize, mouse_btn, render_state.screen_width,
-					render_state.screen_height, &render_state.dest_size),
+				game_state.mouse_button_down(x as isize, y as isize, mouse_btn, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
 			Event::MouseButtonUp {x, y, mouse_btn, ..} =>
-				game_state.mouse_button_up(x as isize, y as isize, mouse_btn, render_state.screen_width,
-					render_state.screen_height, &render_state.dest_size),
+				game_state.mouse_button_up(x as isize, y as isize, mouse_btn, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
 			Event::MouseMotion {x, y, ..} =>
-				game_state.mouse_move(x as isize, y as isize, render_state.screen_width,
-					render_state.screen_height, &render_state.dest_size),
+				game_state.mouse_move(x as isize, y as isize, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
 			Event::MouseWheel {x, y, ..} =>
 				game_state.mouse_wheel(x as isize, y as isize),
 
@@ -869,12 +891,19 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				game_state.text_input(&text),
 
 			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
-				render_state.screen_width = width as usize;
-				render_state.screen_height = height as usize;
+				let draw_size = render_state.canvas.window().drawable_size();
+				render_state.screen_width = draw_size.0 as usize;
+				render_state.screen_height = draw_size.1 as usize;
+				render_state.window_width = width as usize;
+				render_state.window_height = height as usize;
 				let (render_size, dest_size) = render_state.resolution_target.compute_render_sizes(
 					render_state.screen_width, render_state.screen_height);
 
 				game_state.render_size = render_size;
+				render_state.window_dest_size = RenderSize {
+					width: (dest_size.width * render_state.window_width) / render_state.screen_width,
+					height: (dest_size.height * render_state.window_height) / render_state.screen_height
+				};
 				render_state.dest_size = dest_size;
 
 				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB888,
@@ -892,104 +921,111 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 		}
 	}
 
-	// Handle events that were created by actor processing
-	let event_list = game_state.get_pending_events();
-	for event in event_list {
-		match event {
-			PendingEvent::MapChange(map_change) => {
-				game_state.load_map_now(&map_change.map);
-				for actor in &game_state.persistent_actors {
-					game_state.actors.push(actor.clone());
-				}
-				for actor_ref in &game_state.actors {
-					let mut actor = actor_ref.borrow_mut();
-					actor.init(&game_state);
-				}
-				if let Some(camera) = &mut game_state.camera {
-					camera.force_snap = true;
-				}
-			},
-			PendingEvent::UnloadMap => {
-				game_state.actors.clear();
-				game_state.map = None;
-			},
-			PendingEvent::AddActor(add_actor) => {
-				game_state.actors.push(add_actor.actor);
-			},
-			PendingEvent::AddPersistentActor(add_actor) => {
-				game_state.actors.push(add_actor.actor.clone());
-				game_state.persistent_actors.push(add_actor.actor);
-			},
-			PendingEvent::ClearPersistentActors => {
-				game_state.persistent_actors.clear();
-			},
-			PendingEvent::AddUILayout(add_ui_layout) => {
-				game_state.ui_layouts.push(add_ui_layout.layout);
-			},
-			PendingEvent::RemoveUILayout(remove_ui_layout) => {
-				let mut new_ui_layouts = Vec::new();
-				for layout in &game_state.ui_layouts {
-					if !Rc::ptr_eq(layout, &remove_ui_layout.layout) {
-						new_ui_layouts.push(layout.clone());
+	// If frame rate dips, we may need to skip frames to ensure consistent play. Run the actor updates as many
+	// times as needed to catch up.
+	let game_update_count = render_state.frame_skip_count + 1;
+	for _ in 0..game_update_count {
+		// Handle events that were created by actor processing
+		let event_list = game_state.get_pending_events();
+		for event in event_list {
+			match event {
+				PendingEvent::MapChange(map_change) => {
+					game_state.load_map_now(&map_change.map);
+					for actor in &game_state.persistent_actors {
+						game_state.actors.push(actor.clone());
 					}
+					for actor_ref in &game_state.actors {
+						let mut actor = actor_ref.borrow_mut();
+						actor.init(&game_state);
+					}
+					if let Some(camera) = &mut game_state.camera {
+						camera.force_snap = true;
+					}
+				},
+				PendingEvent::UnloadMap => {
+					game_state.actors.clear();
+					game_state.map = None;
+				},
+				PendingEvent::AddActor(add_actor) => {
+					game_state.actors.push(add_actor.actor);
+				},
+				PendingEvent::AddPersistentActor(add_actor) => {
+					game_state.actors.push(add_actor.actor.clone());
+					game_state.persistent_actors.push(add_actor.actor);
+				},
+				PendingEvent::ClearPersistentActors => {
+					game_state.persistent_actors.clear();
+				},
+				PendingEvent::AddUILayout(add_ui_layout) => {
+					game_state.ui_layouts.push(add_ui_layout.layout);
+				},
+				PendingEvent::RemoveUILayout(remove_ui_layout) => {
+					let mut new_ui_layouts = Vec::new();
+					for layout in &game_state.ui_layouts {
+						if !Rc::ptr_eq(layout, &remove_ui_layout.layout) {
+							new_ui_layouts.push(layout.clone());
+						}
+					}
+					game_state.ui_layouts = new_ui_layouts;
+				},
+				PendingEvent::SetControlledActor(controlled_actor) => {
+					game_state.controlled_actor = controlled_actor.actor;
+				},
+				PendingEvent::SetCamera(camera) => {
+					game_state.camera = camera.camera;
+				},
+				PendingEvent::SetScroll(scroll) => {
+					game_state.scroll_x = scroll.x;
+					game_state.scroll_y = scroll.y;
+				},
+				PendingEvent::FadeIn => {
+					game_state.target_fade_alpha = 0;
+				},
+				PendingEvent::FadeOut => {
+					game_state.target_fade_alpha = 16;
 				}
-				game_state.ui_layouts = new_ui_layouts;
-			},
-			PendingEvent::SetControlledActor(controlled_actor) => {
-				game_state.controlled_actor = controlled_actor.actor;
-			},
-			PendingEvent::SetCamera(camera) => {
-				game_state.camera = camera.camera;
-			},
-			PendingEvent::SetScroll(scroll) => {
-				game_state.scroll_x = scroll.x;
-				game_state.scroll_y = scroll.y;
-			},
-			PendingEvent::FadeIn => {
-				game_state.target_fade_alpha = 0;
-			},
-			PendingEvent::FadeOut => {
-				game_state.target_fade_alpha = 16;
+			};
+		}
+
+		game.tick();
+
+		// Advance sprite animations
+		for actor in &game_state.actors {
+			let mut actor_ref = actor.borrow_mut();
+			let actor_info = actor_ref.actor_info_mut();
+			for sprite in &mut actor_info.sprites {
+				sprite.animation_frame += 1;
 			}
-		};
-	}
-
-	game.tick();
-
-	// Advance sprite animations
-	for actor in &game_state.actors {
-		let mut actor_ref = actor.borrow_mut();
-		let actor_info = actor_ref.actor_info_mut();
-		for sprite in &mut actor_info.sprites {
-			sprite.animation_frame += 1;
 		}
-	}
 
-	// Tick actors, and keep a list of non-destroyed actors to replace the
-	// actor list with afterwards
-	let mut new_actor_list: Vec<ActorRef> = Vec::new();
-	for actor in &game_state.actors {
-		let mut actor_ref = actor.borrow_mut();
-		if actor_ref.is_destroyed() {
-			continue;
+		// Tick actors, and keep a list of non-destroyed actors to replace the
+		// actor list with afterwards
+		let mut new_actor_list: Vec<ActorRef> = Vec::new();
+		for actor in &game_state.actors {
+			let mut actor_ref = actor.borrow_mut();
+			if actor_ref.is_destroyed() {
+				continue;
+			}
+			new_actor_list.push(actor.clone());
+			actor_ref.tick(game_state);
 		}
-		new_actor_list.push(actor.clone());
-		actor_ref.tick(game_state);
-	}
 
-	// Replace actor list with destroyed actors removed
-	game_state.actors = new_actor_list;
+		// Replace actor list with destroyed actors removed
+		game_state.actors = new_actor_list;
 
-	// Update camera state
-	if let Some(camera) = &mut game_state.camera {
-		camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
-	}
+		// Update camera state
+		if let Some(camera) = &mut game_state.camera {
+			camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
+		}
 
-	// Process fade animation
-	if game_state.fade_alpha < game_state.target_fade_alpha {
-		game_state.fade_alpha += 1;
-	} else if game_state.fade_alpha > game_state.target_fade_alpha {
-		game_state.fade_alpha -= 1;
+		// Process fade animation
+		if game_state.fade_alpha < game_state.target_fade_alpha {
+			game_state.fade_alpha += 1;
+		} else if game_state.fade_alpha > game_state.target_fade_alpha {
+			game_state.fade_alpha -= 1;
+		}
+
+		game_state.frame += 1;
 	}
 
 	// Render game at internal resolution
@@ -1008,19 +1044,41 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	// Present frame scaled to fit screen
 	render_state.canvas.clear();
 	render_state.canvas.copy(&render_state.texture, None, Rect::new(
-		((render_state.screen_width - render_state.dest_size.width) / 2) as i32,
-		((render_state.screen_height - render_state.dest_size.height) / 2) as i32,
+		(render_state.screen_width as i32 - render_state.dest_size.width as i32) / 2,
+		(render_state.screen_height as i32 - render_state.dest_size.height as i32) / 2,
 		render_state.dest_size.width as u32, render_state.dest_size.height as u32)).unwrap();
+
 	render_state.canvas.present();
+
+	// Enforce 60 FPS
+	let now = Instant::now();
+	let frame_duration = now.duration_since(render_state.last_frame_instant.clone());
+	let mut frame_ns = render_state.frame_pace_error_ns +
+		if frame_duration.as_secs() == 0 { frame_duration.subsec_nanos() as i64 } else { 1_000_000_000 } -
+		(render_state.frame_skip_count as i64 * 16_666_666);
+	if frame_ns > 100_000_000 {
+		frame_ns = 100_000_000;
+	}
+	render_state.frame_pace_error_ns = frame_ns - 16_666_666;
+	render_state.frame_skip_count = 0;
+	if frame_ns < 16_000_000 {
+		sleep(Duration::from_nanos((16_000_000 - frame_ns) as u64));
+	} else if frame_ns >= 33_333_332 {
+		render_state.frame_skip_count = ((frame_ns / 16_666_666) - 1) as usize;
+		if render_state.frame_skip_count > 3 {
+			render_state.frame_skip_count = 3;
+		}
+	}
+	render_state.last_frame_instant = now;
 
 	#[cfg(target_os = "macos")] {
 		// Hack for Mojave, without this we're doomed to a black screen
-		if game_state.frame == 0 {
+		if game_state.rendered_frame == 0 {
 			render_state.canvas.window_mut().set_position(WindowPos::Centered, WindowPos::Centered);
 		}
 	}
 
-	game_state.frame += 1;
+	game_state.rendered_frame += 1;
 }
 
 #[allow(unused_variables)]

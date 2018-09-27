@@ -147,8 +147,8 @@ impl UILayerRenderer for FrameRateTextRenderer {
 		let elapsed_secs = elapsed_time.as_secs();
 		if elapsed_secs != self.last_elapsed_secs {
 			self.last_elapsed_secs = elapsed_secs;
-			self.frame_rate = game_state.frame - self.last_frames;
-			self.last_frames = game_state.frame;
+			self.frame_rate = game_state.rendered_frame - self.last_frames;
+			self.last_frames = game_state.rendered_frame;
 		}
 
 		layer.clear();
