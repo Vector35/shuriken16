@@ -131,7 +131,8 @@ pub struct GameState {
 	pub clipboard: ClipboardUtil,
 	pub global_mouse_pos_x: isize,
 	pub global_mouse_pos_y: isize,
-	pub save_slot: RefCell<usize>
+	pub save_slot: RefCell<usize>,
+	pub paused: RefCell<bool>
 }
 
 pub struct RenderState {
@@ -776,6 +777,18 @@ impl GameState {
 		pending_events.clear();
 		result
 	}
+
+	pub fn pause(&self) {
+		*self.paused.borrow_mut() = true;
+	}
+
+	pub fn resume(&self) {
+		*self.paused.borrow_mut() = false;
+	}
+
+	pub fn is_paused(&self) -> bool {
+		*self.paused.borrow()
+	}
 }
 
 fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, RenderState) {
@@ -871,7 +884,8 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		clipboard: video.clipboard(),
 		global_mouse_pos_x: 0,
 		global_mouse_pos_y: 0,
-		save_slot: RefCell::new(0)
+		save_slot: RefCell::new(0),
+		paused: RefCell::new(false)
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -1030,33 +1044,35 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 
 		game.tick();
 
-		// Advance sprite animations
-		for actor in &game_state.actors {
-			let mut actor_ref = actor.borrow_mut();
-			let actor_info = actor_ref.actor_info_mut();
-			for sprite in &mut actor_info.sprites {
-				sprite.animation_frame += 1;
+		if !game_state.is_paused() {
+			// Advance sprite animations
+			for actor in &game_state.actors {
+				let mut actor_ref = actor.borrow_mut();
+				let actor_info = actor_ref.actor_info_mut();
+				for sprite in &mut actor_info.sprites {
+					sprite.animation_frame += 1;
+				}
 			}
-		}
 
-		// Tick actors, and keep a list of non-destroyed actors to replace the
-		// actor list with afterwards
-		let mut new_actor_list: Vec<ActorRef> = Vec::new();
-		for actor in &game_state.actors {
-			let mut actor_ref = actor.borrow_mut();
-			if actor_ref.is_destroyed() {
-				continue;
+			// Tick actors, and keep a list of non-destroyed actors to replace the
+			// actor list with afterwards
+			let mut new_actor_list: Vec<ActorRef> = Vec::new();
+			for actor in &game_state.actors {
+				let mut actor_ref = actor.borrow_mut();
+				if actor_ref.is_destroyed() {
+					continue;
+				}
+				new_actor_list.push(actor.clone());
+				actor_ref.tick(game_state);
 			}
-			new_actor_list.push(actor.clone());
-			actor_ref.tick(game_state);
-		}
 
-		// Replace actor list with destroyed actors removed
-		game_state.actors = new_actor_list;
+			// Replace actor list with destroyed actors removed
+			game_state.actors = new_actor_list;
 
-		// Update camera state
-		if let Some(camera) = &mut game_state.camera {
-			camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
+			// Update camera state
+			if let Some(camera) = &mut game_state.camera {
+				camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
+			}
 		}
 
 		// Process fade animation
