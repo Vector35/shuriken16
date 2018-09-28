@@ -388,20 +388,20 @@ pub trait Actor: ActorAsAny {
 
 	fn get_camera_focus_offset(&self) -> (isize, isize) { (0, 0) }
 
-	fn adjust_health(&mut self, amount: i32) {
+	fn adjust_health(&mut self, amount: i32, game_state: &GameState) {
 		if self.actor_info().health <= 0 {
 			return;
 		}
 		let new_health = self.actor_info().health.saturating_add(amount);
 		self.actor_info_mut().health = new_health;
 		if new_health <= 0 {
-			self.on_death();
+			self.on_death(game_state);
 		}
 	}
 
-	fn damage(&mut self, _damage_type: &str, _amount: i32) {}
+	fn damage(&mut self, _damage_type: &str, _amount: i32, _game_state: &GameState) {}
 
-	fn on_death(&mut self) {}
+	fn on_death(&mut self, _game_state: &GameState) {}
 
 	fn on_button_down(&mut self, _name: &str, _game_state: &GameState) {}
 	fn on_button_up(&mut self, _name: &str, _game_state: &GameState) {}
