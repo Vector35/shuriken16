@@ -9,8 +9,13 @@ use tile::TileSet;
 use map::TileRef;
 use actor::BoundingRect;
 
+pub trait UIDynamicText {
+	fn text(&self) -> String;
+}
+
 pub struct UILabel {
-	pub text: String
+	pub text: String,
+	pub dynamic_text: Option<Box<UIDynamicText>>
 }
 
 pub struct UILabelLayout {
@@ -20,7 +25,9 @@ pub struct UILabelLayout {
 }
 
 pub struct UIWrappingLabel {
-	pub lines: Vec<String>
+	pub lines: Vec<String>,
+	pub width: usize,
+	pub dynamic_text: Option<Box<UIDynamicText>>
 }
 
 pub struct UIWrappingLabelLayout {
@@ -53,7 +60,12 @@ pub struct UIButtonLayout {
 impl UILayerRenderer for UILabel {
 	fn update(&mut self, layer: &mut UILayerContents, _game_state: &GameState) {
 		layer.clear();
-		layer.write(0, 0, &self.text);
+		if let Some(dynamic_text) = &self.dynamic_text {
+			let text = dynamic_text.text();
+			layer.write(0, 0, &text);
+		} else {
+			layer.write(0, 0, &self.text);
+		}
 	}
 }
 
@@ -61,7 +73,8 @@ impl UILabel {
 	pub fn new_ui_layer(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str) -> UILayerRef {
 		let mut label = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
 		let renderer = UILabel {
-			text: text.to_string()
+			text: text.to_string(),
+			dynamic_text: None
 		};
 		label.renderer = Some(Box::new(renderer));
 		label.set_font(font_tile_set.clone(), font_base);
@@ -71,6 +84,25 @@ impl UILabel {
 	pub fn new_ui_layout(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str) -> UILabelLayout {
 		UILabelLayout {
 			label: UILabel::new_ui_layer(font_tile_set, font_base, text),
+			tile_width: font_tile_set.width as isize,
+			tile_height: font_tile_set.height as isize
+		}
+	}
+
+	pub fn new_dynamic_ui_layer(font_tile_set: &Rc<TileSet>, font_base: u8, dynamic_text: Box<UIDynamicText>) -> UILayerRef {
+		let mut label = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
+		let renderer = UILabel {
+			text: "".to_string(),
+			dynamic_text: Some(dynamic_text)
+		};
+		label.renderer = Some(Box::new(renderer));
+		label.set_font(font_tile_set.clone(), font_base);
+		ui::to_layer_ref(label)
+	}
+
+	pub fn new_dynamic_ui_layout(font_tile_set: &Rc<TileSet>, font_base: u8, dynamic_text: Box<UIDynamicText>) -> UILabelLayout {
+		UILabelLayout {
+			label: UILabel::new_dynamic_ui_layer(font_tile_set, font_base, dynamic_text),
 			tile_width: font_tile_set.width as isize,
 			tile_height: font_tile_set.height as isize
 		}
@@ -102,7 +134,11 @@ impl UILabelLayout {
 		let label = self.label.borrow();
 		if let Some(renderer) = &label.renderer {
 			if let Some(label) = renderer.as_any().downcast_ref::<UILabel>() {
-				return label.text.clone()
+				if let Some(dynamic_text) = &label.dynamic_text {
+					return dynamic_text.text()
+				} else {
+					return label.text.clone()
+				}
 			}
 		}
 		"".to_string()
@@ -112,8 +148,16 @@ impl UILabelLayout {
 impl UILayerRenderer for UIWrappingLabel {
 	fn update(&mut self, layer: &mut UILayerContents, _game_state: &GameState) {
 		layer.clear();
-		for (i, line) in self.lines.iter().enumerate() {
-			layer.write(0, i as isize, &line);
+		if let Some(dynamic_text) = &self.dynamic_text {
+			let text = dynamic_text.text();
+			let lines = UIWrappingLabel::wrap_text(&text, self.width);
+			for (i, line) in lines.iter().enumerate() {
+				layer.write(0, i as isize, &line);
+			}
+		} else {
+			for (i, line) in self.lines.iter().enumerate() {
+				layer.write(0, i as isize, &line);
+			}
 		}
 	}
 }
@@ -160,7 +204,9 @@ impl UIWrappingLabel {
 	pub fn new_ui_layer(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str, width: usize) -> UILayerRef {
 		let mut label = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
 		let renderer = UIWrappingLabel {
-			lines: UIWrappingLabel::wrap_text(text, width)
+			lines: UIWrappingLabel::wrap_text(text, width),
+			width,
+			dynamic_text: None
 		};
 		label.renderer = Some(Box::new(renderer));
 		label.set_font(font_tile_set.clone(), font_base);
@@ -170,6 +216,28 @@ impl UIWrappingLabel {
 	pub fn new_ui_layout(font_tile_set: &Rc<TileSet>, font_base: u8, text: &str, width: usize) -> UIWrappingLabelLayout {
 		UIWrappingLabelLayout {
 			label: UIWrappingLabel::new_ui_layer(font_tile_set, font_base, text, width),
+			tile_width: font_tile_set.width as isize,
+			tile_height: font_tile_set.height as isize
+		}
+	}
+
+	pub fn new_dynamic_ui_layer(font_tile_set: &Rc<TileSet>, font_base: u8,
+		dynamic_text: Box<UIDynamicText>, width: usize) -> UILayerRef {
+		let mut label = UILayer::new(font_tile_set.width, font_tile_set.height, font_tile_set.depth);
+		let renderer = UIWrappingLabel {
+			lines: Vec::new(),
+			width,
+			dynamic_text: Some(dynamic_text)
+		};
+		label.renderer = Some(Box::new(renderer));
+		label.set_font(font_tile_set.clone(), font_base);
+		ui::to_layer_ref(label)
+	}
+
+	pub fn new_dynamic_ui_layout(font_tile_set: &Rc<TileSet>, font_base: u8,
+		dynamic_text: Box<UIDynamicText>, width: usize) -> UIWrappingLabelLayout {
+		UIWrappingLabelLayout {
+			label: UIWrappingLabel::new_dynamic_ui_layer(font_tile_set, font_base, dynamic_text, width),
 			tile_width: font_tile_set.width as isize,
 			tile_height: font_tile_set.height as isize
 		}
@@ -229,7 +297,12 @@ impl UIWrappingLabelLayout {
 		let label = self.label.borrow();
 		if let Some(renderer) = &label.renderer {
 			if let Some(label) = renderer.as_any().downcast_ref::<UIWrappingLabel>() {
-				return label.lines.clone()
+				if let Some(dynamic_text) = &label.dynamic_text {
+					let text = dynamic_text.text();
+					return UIWrappingLabel::wrap_text(&text, label.width);
+				} else {
+					return label.lines.clone()
+				}
 			}
 		}
 		Vec::new()

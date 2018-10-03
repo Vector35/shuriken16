@@ -315,6 +315,10 @@ fn render_layer_with_blending(bounds: &BoundingRect, render_buf: &mut Vec<Vec<u3
 	game: &GameState, layer: &MapLayer, scroll_x: isize, scroll_y: isize,
 	tile_renderer: &Fn(&mut [u32], &[u8], usize, usize, &Option<PaletteWithOffset>, &Fn(&mut u32, u32)),
 	blend: &Fn(&mut u32, u32)) {
+	if (layer.width == 0) || (layer.height == 0) {
+		return;
+	}
+
 	// Compute scrolling for this layer
 	let parallax_x = layer.parallax_x as isize;
 	let parallax_y = layer.parallax_y as isize;
