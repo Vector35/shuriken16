@@ -19,6 +19,7 @@
 #include "floatfieldtype.h"
 #include "choicefieldtype.h"
 #include "mapfieldtype.h"
+#include "tilesetfieldtype.h"
 #include "jsonfieldtype.h"
 
 
@@ -100,6 +101,7 @@ void InitEditor()
 	FloatFieldType::Register();
 	ChoiceFieldType::Register();
 	MapFieldType::Register();
+	TileSetFieldType::Register();
 	JsonFieldType::Register();
 }
 
