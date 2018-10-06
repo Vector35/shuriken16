@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 #include <QWidget>
 #include "sprite.h"
 #include "map.h"

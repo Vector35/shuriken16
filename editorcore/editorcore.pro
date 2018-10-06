@@ -3,6 +3,7 @@ QT += core gui widgets
 TARGET = editorcore
 TEMPLATE = lib 
 CONFIG += staticlib
+CONFIG += c++11
 
 DEFINES += QT_DEPRECATED_WARNINGS
 INCLUDEPATH += $$PWD/editor
