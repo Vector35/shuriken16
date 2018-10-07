@@ -6,6 +6,7 @@
 #include "spriteview.h"
 #include "editorview.h"
 #include "actortypeview.h"
+#include "importnesdialog.h"
 #include <QMenu>
 #include <QMenuBar>
 #include <QFileDialog>
@@ -106,6 +107,12 @@ MainWindow::MainWindow(const QString& title, const QString& basePath, const QStr
 	connect(m_selectAllAction, &QAction::triggered, this, &MainWindow::OnSelectAll);
 	editMenu->addAction(m_selectAllAction);
 
+	QMenu* importMenu = new QMenu("Import");
+
+	m_importNESAction = new QAction("NES CHR...");
+	connect(m_importNESAction, &QAction::triggered, this, &MainWindow::OnImportNES);
+	importMenu->addAction(m_importNESAction);
+
 	QMenu* gameMenu = new QMenu("Game");
 
 	m_runAction = new QAction("Run");
@@ -115,6 +122,7 @@ MainWindow::MainWindow(const QString& title, const QString& basePath, const QStr
 
 	menuBar()->addMenu(fileMenu);
 	menuBar()->addMenu(editMenu);
+	menuBar()->addMenu(importMenu);
 	menuBar()->addMenu(gameMenu);
 
 	m_projectView = new ProjectView(this);
@@ -856,5 +864,31 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	else
 	{
 		event->ignore();
+	}
+}
+
+
+void MainWindow::OnImportNES()
+{
+	ImportNESDialog dialog(this, m_project);
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		shared_ptr<TileSet> tileSet = dialog.GetResult();
+		UpdateTileSetContents(tileSet);
+		OpenTileSet(tileSet);
+		AddUndoAction(
+			[=]() { // Undo
+				UpdateTileSetContents(tileSet);
+				CloseTileSet(tileSet);
+				m_project->DeleteTileSet(tileSet);
+				m_projectView->UpdateList();
+			},
+			[=]() { // Redo
+				m_project->AddTileSet(tileSet);
+				UpdateTileSetContents(tileSet);
+				m_projectView->UpdateList();
+			}
+		);
+		m_projectView->UpdateList();
 	}
 }

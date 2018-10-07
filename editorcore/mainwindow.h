@@ -43,6 +43,8 @@ class MainWindow: public QMainWindow
 	QAction* m_pasteAction;
 	QAction* m_selectAllAction;
 
+	QAction* m_importNESAction;
+
 	QAction* m_runAction;
 
 	QTabWidget* m_tabs;
@@ -130,4 +132,5 @@ protected slots:
 	void OnBuildFinished(int exitCode, QProcess::ExitStatus exitStatus);
 	void OnRunFinished(int exitCode, QProcess::ExitStatus exitStatus);
 	void TabClose(int i);
+	void OnImportNES();
 };
