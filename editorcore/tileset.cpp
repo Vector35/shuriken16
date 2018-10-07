@@ -235,7 +235,14 @@ Json::Value TileSet::Serialize()
 	if (m_associatedTileSets.size() != 0)
 	{
 		Json::Value associated(Json::arrayValue);
+		vector<shared_ptr<TileSet>> sortedAssociatedSets;
 		for (auto& i : m_associatedTileSets)
+			sortedAssociatedSets.push_back(i);
+		sort(sortedAssociatedSets.begin(), sortedAssociatedSets.end(),
+			[&](const shared_ptr<TileSet>& a, const shared_ptr<TileSet>& b) {
+				return a->GetId() < b->GetId();
+			});
+		for (auto& i : sortedAssociatedSets)
 			associated.append(i->GetId());
 		tileSet["associated"] = associated;
 	}

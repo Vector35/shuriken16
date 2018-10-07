@@ -344,11 +344,18 @@ Json::Value MapLayer::Serialize()
 		if (i.tileSet)
 			usedTileSets.insert(i.tileSet);
 	}
+	vector<shared_ptr<TileSet>> sortedUsedTileSets;
+	for (auto& i : usedTileSets)
+		sortedUsedTileSets.push_back(i);
+	sort(sortedUsedTileSets.begin(), sortedUsedTileSets.end(),
+		[&](const shared_ptr<TileSet>& a, const shared_ptr<TileSet>& b) {
+			return a->GetId() < b->GetId();
+		});
 
 	Json::Value tileSets(Json::arrayValue);
 	std::map<shared_ptr<TileSet>, uint64_t> tileSetIds;
 	uint64_t i = 0;
-	for (auto& j : usedTileSets)
+	for (auto& j : sortedUsedTileSets)
 	{
 		tileSets.append(j->GetId());
 		tileSetIds[j] = i++;
