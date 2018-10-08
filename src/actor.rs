@@ -306,84 +306,36 @@ pub trait Actor: ActorAsAny {
 	}
 
 	fn add_sprite(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize) -> usize {
-		let actor_info = self.actor_info_mut();
-		let animation = sprite.get_default_animation();
-		let index = actor_info.sprites.len();
-		actor_info.sprites.push(SpriteWithOffset {
-			sprite,
-			animation,
-			animation_frame: 0,
-			x_offset, y_offset,
-			blend_mode: BlendMode::Normal,
-			alpha: 0
-		});
-		index
+		self.actor_info_mut().add_sprite(sprite, x_offset, y_offset)
 	}
 
 	fn add_sprite_with_blending(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize,
 		blend_mode: BlendMode, alpha: u8) -> usize {
-		let actor_info = self.actor_info_mut();
-		let animation = sprite.get_default_animation();
-		let index = actor_info.sprites.len();
-		actor_info.sprites.push(SpriteWithOffset {
-			sprite,
-			animation,
-			animation_frame: 0,
-			x_offset, y_offset,
-			blend_mode, alpha
-		});
-		index
+		self.actor_info_mut().add_sprite_with_blending(sprite, x_offset, y_offset, blend_mode, alpha)
 	}
 
 	fn set_sprite_alpha(&mut self, sprite_index: usize, alpha: u8) {
-		let actor_info = self.actor_info_mut();
-		if sprite_index < actor_info.sprites.len() {
-			actor_info.sprites[sprite_index].alpha = alpha;
-		}
+		self.actor_info_mut().set_sprite_alpha(sprite_index, alpha);
 	}
 
 	fn get_sprite_alpha(&mut self, sprite_index: usize) -> u8 {
-		let actor_info = self.actor_info_mut();
-		if sprite_index < actor_info.sprites.len() {
-			actor_info.sprites[sprite_index].alpha
-		} else {
-			0
-		}
+		self.actor_info_mut().get_sprite_alpha(sprite_index)
 	}
 
 	fn adjust_sprite_alpha(&mut self, sprite_index: usize, change: i8) {
-		let mut alpha = self.get_sprite_alpha(sprite_index);
-		if change > 0 {
-			alpha = alpha.saturating_add(change as u8);
-			if alpha > 16 {
-				alpha = 16;
-			}
-		} else if change < 0 {
-			alpha = alpha.saturating_sub((-change) as u8);
-		}
-		self.set_sprite_alpha(sprite_index, alpha);
+		self.actor_info_mut().adjust_sprite_alpha(sprite_index, change);
 	}
 
 	fn start_animation(&mut self, name: &str) {
-		let actor_info = self.actor_info_mut();
-		for sprite in &mut actor_info.sprites {
-			if let Some(animation) = sprite.sprite.get_animation_by_name(name) {
-				if !Rc::ptr_eq(&animation, &sprite.animation) {
-					sprite.animation = animation;
-					sprite.animation_frame = 0;
-				}
-			}
-		}
+		self.actor_info_mut().start_animation(name);
 	}
 
 	fn set_collision_bounds(&mut self, bounds: BoundingRect) {
-		let actor_info = self.actor_info_mut();
-		actor_info.collision_bounds = Some(bounds);
+		self.actor_info_mut().set_collision_bounds(bounds);
 	}
 
 	fn clear_collision_bounds(&mut self) {
-		let actor_info = self.actor_info_mut();
-		actor_info.collision_bounds = None;
+		self.actor_info_mut().clear_collision_bounds();
 	}
 
 	fn get_camera_focus_offset(&self) -> (isize, isize) { (0, 0) }
@@ -427,6 +379,80 @@ impl ActorInfo {
 			destroyed: false,
 			health: 100
 		}
+	}
+
+	pub fn add_sprite(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize) -> usize {
+		let animation = sprite.get_default_animation();
+		let index = self.sprites.len();
+		self.sprites.push(SpriteWithOffset {
+			sprite,
+			animation,
+			animation_frame: 0,
+			x_offset, y_offset,
+			blend_mode: BlendMode::Normal,
+			alpha: 0
+		});
+		index
+	}
+
+	pub fn add_sprite_with_blending(&mut self, sprite: Rc<Sprite>, x_offset: isize, y_offset: isize,
+		blend_mode: BlendMode, alpha: u8) -> usize {
+		let animation = sprite.get_default_animation();
+		let index = self.sprites.len();
+		self.sprites.push(SpriteWithOffset {
+			sprite,
+			animation,
+			animation_frame: 0,
+			x_offset, y_offset,
+			blend_mode, alpha
+		});
+		index
+	}
+
+	pub fn set_sprite_alpha(&mut self, sprite_index: usize, alpha: u8) {
+		if sprite_index < self.sprites.len() {
+			self.sprites[sprite_index].alpha = alpha;
+		}
+	}
+
+	pub fn get_sprite_alpha(&mut self, sprite_index: usize) -> u8 {
+		if sprite_index < self.sprites.len() {
+			self.sprites[sprite_index].alpha
+		} else {
+			0
+		}
+	}
+
+	pub fn adjust_sprite_alpha(&mut self, sprite_index: usize, change: i8) {
+		let mut alpha = self.get_sprite_alpha(sprite_index);
+		if change > 0 {
+			alpha = alpha.saturating_add(change as u8);
+			if alpha > 16 {
+				alpha = 16;
+			}
+		} else if change < 0 {
+			alpha = alpha.saturating_sub((-change) as u8);
+		}
+		self.set_sprite_alpha(sprite_index, alpha);
+	}
+
+	pub fn start_animation(&mut self, name: &str) {
+		for sprite in &mut self.sprites {
+			if let Some(animation) = sprite.sprite.get_animation_by_name(name) {
+				if !Rc::ptr_eq(&animation, &sprite.animation) {
+					sprite.animation = animation;
+					sprite.animation_frame = 0;
+				}
+			}
+		}
+	}
+
+	pub fn set_collision_bounds(&mut self, bounds: BoundingRect) {
+		self.collision_bounds = Some(bounds);
+	}
+
+	pub fn clear_collision_bounds(&mut self) {
+		self.collision_bounds = None;
 	}
 }
 
