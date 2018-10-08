@@ -352,6 +352,7 @@ pub trait Actor: ActorAsAny {
 	}
 
 	fn damage(&mut self, _damage_type: &str, _amount: i32, _game_state: &GameState) {}
+	fn knockback(&mut self, _x: isize, _y: isize, _game_state: &GameState) {}
 
 	fn on_death(&mut self, _game_state: &GameState) {}
 
