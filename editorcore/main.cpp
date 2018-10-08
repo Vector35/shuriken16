@@ -20,6 +20,7 @@
 #include "choicefieldtype.h"
 #include "mapfieldtype.h"
 #include "tilesetfieldtype.h"
+#include "spritefieldtype.h"
 #include "jsonfieldtype.h"
 
 
@@ -102,6 +103,7 @@ void InitEditor()
 	ChoiceFieldType::Register();
 	MapFieldType::Register();
 	TileSetFieldType::Register();
+	SpriteFieldType::Register();
 	JsonFieldType::Register();
 }
 

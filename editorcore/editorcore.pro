@@ -73,6 +73,7 @@ SOURCES += \
 	choicefieldtype.cpp \
 	mapfieldtype.cpp \
 	tilesetfieldtype.cpp \
+	spritefieldtype.cpp \
 	jsonfieldtype.cpp \
 	importnesdialog.cpp \
 	json/jsoncpp.cpp
@@ -141,6 +142,7 @@ HEADERS += \
 	choicefieldtype.h \
 	mapfieldtype.h \
 	tilesetfieldtype.h \
+	spritefieldtype.h \
 	importnesdialog.h \
 	jsonfieldtype.h \
 	json/json.h
