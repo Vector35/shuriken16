@@ -78,6 +78,12 @@ pub struct SetCameraEvent {
 }
 
 #[derive(Clone)]
+pub struct SetCameraShakeEvent {
+	x: isize,
+	y: isize
+}
+
+#[derive(Clone)]
 pub struct SetScrollEvent {
 	x: isize,
 	y: isize
@@ -94,6 +100,7 @@ pub enum PendingEvent {
 	RemoveUILayout(RemoveUILayoutEvent),
 	SetControlledActor(SetControlledActorEvent),
 	SetCamera(SetCameraEvent),
+	SetCameraShake(SetCameraShakeEvent),
 	SetScroll(SetScrollEvent),
 	FadeOut,
 	FadeIn
@@ -107,6 +114,8 @@ pub struct GameState {
 	pub persistent_actors: Vec<ActorRef>,
 	pub controlled_actor: Option<ActorRef>,
 	pub camera: Option<Camera>,
+	pub camera_shake_x: isize,
+	pub camera_shake_y: isize,
 	pub render_size: RenderSize,
 	pub scroll_x: isize,
 	pub scroll_y: isize,
@@ -224,6 +233,8 @@ impl GameState {
 				camera.map_bounds = bounds;
 			}
 		}
+		self.camera_shake_x = 0;
+		self.camera_shake_y = 0;
 	}
 
 	pub fn load_map(&self, map: &Rc<Map>) {
@@ -295,6 +306,12 @@ impl GameState {
 	pub fn set_camera(&self, camera: Option<Camera>) {
 		self.pending_events.borrow_mut().push(PendingEvent::SetCamera(SetCameraEvent {
 			camera
+		}));
+	}
+
+	pub fn set_camera_shake(&self, x: isize, y: isize) {
+		self.pending_events.borrow_mut().push(PendingEvent::SetCameraShake(SetCameraShakeEvent {
+			x, y
 		}));
 	}
 
@@ -858,6 +875,8 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		persistent_actors: Vec::new(),
 		controlled_actor: None,
 		camera: None,
+		camera_shake_x: 0,
+		camera_shake_y: 0,
 		render_size,
 		scroll_x: 0, scroll_y: 0,
 		fade_alpha: match game.fade_in_on_start() {
@@ -997,6 +1016,8 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				PendingEvent::UnloadMap => {
 					game_state.actors.clear();
 					game_state.map = None;
+					game_state.camera_shake_x = 0;
+					game_state.camera_shake_y = 0;
 				},
 				PendingEvent::AddActor(add_actor) => {
 					game_state.actors.push(add_actor.actor);
@@ -1028,6 +1049,10 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 				},
 				PendingEvent::SetCamera(camera) => {
 					game_state.camera = camera.camera;
+				},
+				PendingEvent::SetCameraShake(shake) => {
+					game_state.camera_shake_x = shake.x;
+					game_state.camera_shake_y = shake.y;
 				},
 				PendingEvent::SetScroll(scroll) => {
 					game_state.scroll_x = scroll.x;
@@ -1072,6 +1097,8 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 			// Update camera state
 			if let Some(camera) = &mut game_state.camera {
 				camera.tick(&game_state.render_size, &mut game_state.scroll_x, &mut game_state.scroll_y);
+				game_state.scroll_x += game_state.camera_shake_x;
+				game_state.scroll_y += game_state.camera_shake_y;
 			}
 		}
 
