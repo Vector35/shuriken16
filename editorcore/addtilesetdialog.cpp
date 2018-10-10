@@ -20,6 +20,7 @@ AddTileSetDialog::AddTileSetDialog(QWidget* parent, shared_ptr<Project> project)
 	m_type = new QComboBox();
 	QStringList types;
 	types.append("Normal tile set");
+	types.append("Simplified single width smart tile set");
 	types.append("Simplified double width smart tile set");
 	m_type->setEditable(false);
 	m_type->addItems(types);

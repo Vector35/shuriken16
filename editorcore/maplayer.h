@@ -48,6 +48,7 @@ class MapLayer
 
 	bool IsCompatibleForSmartTiles(size_t x, size_t y, const std::shared_ptr<TileSet>& tileSet);
 	SmartTileContext GetContextForSmartTile(size_t x, size_t y, const std::shared_ptr<TileSet>& tileSet);
+	void UpdateSimplifiedSingleWidthSmartTileSet(size_t x, size_t y, const std::shared_ptr<TileSet>& tileSet);
 	void UpdateSimplifiedDoubleWidthSmartTileSet(size_t x, size_t y, const std::shared_ptr<TileSet>& tileSet);
 
 public:

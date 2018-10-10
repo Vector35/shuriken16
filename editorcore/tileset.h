@@ -14,6 +14,7 @@ class Project;
 enum SmartTileSetType
 {
 	NormalTileSet,
+	SimplifiedSingleWidthSmartTileSet,
 	SimplifiedDoubleWidthSmartTileSet
 };
 

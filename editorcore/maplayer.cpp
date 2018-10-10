@@ -121,6 +121,9 @@ void MapLayer::UpdateSmartTile(size_t x, size_t y)
 
 	switch (ref.tileSet->GetSmartTileSetType())
 	{
+	case SimplifiedSingleWidthSmartTileSet:
+		UpdateSimplifiedSingleWidthSmartTileSet(x, y, ref.tileSet);
+		break;
 	case SimplifiedDoubleWidthSmartTileSet:
 		UpdateSimplifiedDoubleWidthSmartTileSet(x, y, ref.tileSet);
 		break;
@@ -150,6 +153,41 @@ MapLayer::SmartTileContext MapLayer::GetContextForSmartTile(size_t x, size_t y, 
 		for (int i = -2; i <= 2; i++)
 			result.tile[i + 2][j + 2] = IsCompatibleForSmartTiles(x + i, y + j, tileSet);
 	return result;
+}
+
+
+void MapLayer::UpdateSimplifiedSingleWidthSmartTileSet(size_t x, size_t y, const shared_ptr<TileSet>& tileSet)
+{
+	SmartTileContext c = GetContextForSmartTile(x, y, tileSet);
+
+#define TILE_INDEX(x, y) (((y) * 5) + (x))
+	if (c.Filled(-1, 0) && c.Filled(1, 0) && c.Filled(0, -1) && c.Empty(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(1, 2)));
+	else if (c.Filled(-1, 0) && c.Filled(1, 0) && c.Empty(0, -1) && c.Filled(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(1, 0)));
+	else if (c.Filled(-1, 0) && c.Empty(1, 0) && c.Filled(0, -1) && c.Filled(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(2, 1)));
+	else if (c.Empty(-1, 0) && c.Filled(1, 0) && c.Filled(0, -1) && c.Filled(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(0, 1)));
+	else if (c.Filled(-1, 0) && c.Empty(1, 0) && c.Filled(0, -1) && c.Empty(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(2, 2)));
+	else if (c.Filled(-1, 0) && c.Empty(1, 0) && c.Empty(0, -1) && c.Filled(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(2, 0)));
+	else if (c.Empty(-1, 0) && c.Filled(1, 0) && c.Filled(0, -1) && c.Empty(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(0, 2)));
+	else if (c.Empty(-1, 0) && c.Filled(1, 0) && c.Empty(0, -1) && c.Filled(0, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(0, 0)));
+	else if (c.Empty(-1, -1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(3, 0)));
+	else if (c.Empty(1, -1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(4, 0)));
+	else if (c.Empty(-1, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(3, 1)));
+	else if (c.Empty(1, 1))
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(4, 1)));
+	else
+		SetTileAt(x, y, TileReference(tileSet, TILE_INDEX(1, 1)));
+#undef TILE_INDEX
 }
 
 

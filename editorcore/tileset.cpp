@@ -226,8 +226,12 @@ Json::Value TileSet::Serialize()
 
 	switch (m_smartTileSetType)
 	{
+	case SimplifiedSingleWidthSmartTileSet:
+		tileSet["smart"] = "simplified_single_width";
+		break;
 	case SimplifiedDoubleWidthSmartTileSet:
 		tileSet["smart"] = "simplified_double_width";
+		break;
 	default:
 		break;
 	}
@@ -260,6 +264,8 @@ shared_ptr<TileSet> TileSet::Deserialize(shared_ptr<Project> project, const Json
 	SmartTileSetType smartTileSetType = NormalTileSet;
 	if (data.isMember("smart"))
 	{
+		if (data["smart"].asString() == "simplified_single_width")
+			smartTileSetType = SimplifiedSingleWidthSmartTileSet;
 		if (data["smart"].asString() == "simplified_double_width")
 			smartTileSetType = SimplifiedDoubleWidthSmartTileSet;
 	}
@@ -310,6 +316,8 @@ size_t TileSet::GetTileCountForSmartTileSet(SmartTileSetType type)
 {
 	switch (type)
 	{
+	case SimplifiedSingleWidthSmartTileSet:
+		return 13;
 	case SimplifiedDoubleWidthSmartTileSet:
 		return 41;
 	default:
@@ -322,6 +330,8 @@ size_t TileSet::GetDisplayColumnsForSmartTileSet(SmartTileSetType type)
 {
 	switch (type)
 	{
+	case SimplifiedSingleWidthSmartTileSet:
+		return 5;
 	case SimplifiedDoubleWidthSmartTileSet:
 		return 9;
 	default:
@@ -334,6 +344,8 @@ size_t TileSet::GetDefaultTileForSmartTileSet(SmartTileSetType type)
 {
 	switch (type)
 	{
+	case SimplifiedSingleWidthSmartTileSet:
+		return 6;
 	case SimplifiedDoubleWidthSmartTileSet:
 		return (2 * 9) + 2;
 	default:
