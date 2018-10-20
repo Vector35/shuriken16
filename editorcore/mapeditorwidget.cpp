@@ -7,6 +7,7 @@
 #include <QClipboard>
 #include <set>
 #include <queue>
+#include <math.h>
 #include "mapeditorwidget.h"
 #include "mapview.h"
 #include "effectlayerview.h"
@@ -589,6 +590,54 @@ void MapEditorWidget::UpdateFilledRectangleLayer(QMouseEvent* event)
 }
 
 
+void MapEditorWidget::UpdateCircleLayer(QMouseEvent* event)
+{
+	int curX = ((event->x() / m_zoom) + horizontalScrollBar()->value()) / m_layer->GetTileWidth();
+	int curY = ((event->y() / m_zoom) + verticalScrollBar()->value()) / m_layer->GetTileHeight();
+
+	int distx = ((m_startX < curX) ? curX : m_startX) - ((m_startX < curX) ? m_startX : curX);
+	int disty = ((m_startY < curY) ? curY : m_startY) - ((m_startY < curY) ? m_startY : curY);
+	int radius = sqrt((distx * distx) + (disty * disty)) + 0.5;
+	int x = radius-1;
+	int y = 0;
+	int dx = 1;
+	int dy = 1;
+	int err = dx - (radius << 1);
+
+	int orgx = m_startX - radius;
+	int orgy = m_startY - radius;
+
+	m_floatingLayer = make_shared<MapFloatingLayer>(m_layer, orgx, orgy, (radius * 2) + 1, (radius * 2) + 1);
+	while (x >= y)
+	{
+		m_floatingLayer->SetTile(m_startX - orgx + x, m_startY - orgy + y, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx + y, m_startY - orgy + x, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx - y, m_startY - orgy + x, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx - x, m_startY - orgy + y, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx - x, m_startY - orgy - y, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx - y, m_startY - orgy - x, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx + y, m_startY - orgy - x, m_mouseDownTileSet, m_mouseDownTileIndex);
+		m_floatingLayer->SetTile(m_startX - orgx + x, m_startY - orgy - y, m_mouseDownTileSet, m_mouseDownTileIndex);
+
+		if (err <= 0)
+		{
+			y++;
+			err += dy;
+			dy += 2;
+		}
+
+		if (err > 0)
+		{
+			x--;
+			dx += 2;
+			err += dx - (radius << 1);
+		}
+    }
+
+	update();
+}
+
+
 void MapEditorWidget::UpdateLineLayer(QMouseEvent* event)
 {
 	int curX = ((event->x() / m_zoom) + horizontalScrollBar()->value()) / m_layer->GetTileWidth();
@@ -781,6 +830,12 @@ void MapEditorWidget::mousePressEvent(QMouseEvent* event)
 		m_startX = ((event->x() / m_zoom) + horizontalScrollBar()->value()) / m_layer->GetTileWidth();
 		m_startY = ((event->y() / m_zoom) + verticalScrollBar()->value()) / m_layer->GetTileHeight();
 		UpdateFilledRectangleLayer(event);
+		break;
+
+	case CircleTool:
+		m_startX = ((event->x() / m_zoom) + horizontalScrollBar()->value()) / m_layer->GetTileWidth();
+		m_startY = ((event->y() / m_zoom) + verticalScrollBar()->value()) / m_layer->GetTileHeight();
+		UpdateCircleLayer(event);
 		break;
 
 	case LineTool:
@@ -984,6 +1039,12 @@ void MapEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 		m_floatingLayer.reset();
 		break;
 
+	case CircleTool:
+		UpdateCircleLayer(event);
+		ApplyLayer(m_floatingLayer);
+		m_floatingLayer.reset();
+		break;
+
 	case LineTool:
 		UpdateLineLayer(event);
 		ApplyLayer(m_floatingLayer);
@@ -1037,6 +1098,10 @@ void MapEditorWidget::mouseMoveEvent(QMouseEvent* event)
 
 		case FilledRectangleTool:
 			UpdateFilledRectangleLayer(event);
+			break;
+
+		case CircleTool:
+			UpdateCircleLayer(event);
 			break;
 
 		case LineTool:

@@ -9,6 +9,7 @@
 #include <set>
 #include <queue>
 #include <stdlib.h>
+#include <math.h>
 #include "spriteeditorwidget.h"
 #include "spriteanimationwidget.h"
 #include "spriteview.h"
@@ -742,6 +743,54 @@ void SpriteEditorWidget::UpdateFilledRectangleLayer(QMouseEvent* event)
 }
 
 
+void SpriteEditorWidget::UpdateCircleLayer(QMouseEvent* event)
+{
+	int curX = event->x() / m_zoom;
+	int curY = event->y() / m_zoom;
+
+	int distx = ((m_startX < curX) ? curX : m_startX) - ((m_startX < curX) ? m_startX : curX);
+	int disty = ((m_startY < curY) ? curY : m_startY) - ((m_startY < curY) ? m_startY : curY);
+	int radius = sqrt((distx * distx) + (disty * disty)) + 0.5;
+	int x = radius-1;
+	int y = 0;
+	int dx = 1;
+	int dy = 1;
+	int err = dx - (radius << 1);
+
+	int orgx = m_startX - radius;
+	int orgy = m_startY - radius;
+
+	m_floatingLayer = make_shared<TileSetFloatingLayer>(orgx, orgy, (radius * 2) + 1, (radius * 2) + 1);
+	while (x >= y)
+	{
+		m_floatingLayer->SetPixel(m_startX - orgx + x, m_startY - orgy + y, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx + y, m_startY - orgy + x, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx - y, m_startY - orgy + x, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx - x, m_startY - orgy + y, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx - x, m_startY - orgy - y, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx - y, m_startY - orgy - x, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx + y, m_startY - orgy - x, m_palette, m_mouseDownPaletteEntry);
+		m_floatingLayer->SetPixel(m_startX - orgx + x, m_startY - orgy - y, m_palette, m_mouseDownPaletteEntry);
+
+		if (err <= 0)
+		{
+			y++;
+			err += dy;
+			dy += 2;
+		}
+
+		if (err > 0)
+		{
+			x--;
+			dx += 2;
+			err += dx - (radius << 1);
+		}
+    }
+
+	update();
+}
+
+
 void SpriteEditorWidget::UpdateLineLayer(QMouseEvent* event)
 {
 	int curX = event->x() / m_zoom;
@@ -933,6 +982,13 @@ void SpriteEditorWidget::mousePressEvent(QMouseEvent* event)
 		update();
 		break;
 
+	case CircleTool:
+		m_startX = event->x() / m_zoom;
+		m_startY = event->y() / m_zoom;
+		UpdateCircleLayer(event);
+		update();
+		break;
+
 	case LineTool:
 		m_startX = event->x() / m_zoom;
 		m_startY = event->y() / m_zoom;
@@ -1091,6 +1147,12 @@ void SpriteEditorWidget::mouseReleaseEvent(QMouseEvent* event)
 		m_floatingLayer.reset();
 		break;
 
+	case CircleTool:
+		UpdateCircleLayer(event);
+		ApplyLayer(m_floatingLayer);
+		m_floatingLayer.reset();
+		break;
+
 	case LineTool:
 		UpdateLineLayer(event);
 		ApplyLayer(m_floatingLayer);
@@ -1139,6 +1201,10 @@ void SpriteEditorWidget::mouseMoveEvent(QMouseEvent* event)
 
 		case FilledRectangleTool:
 			UpdateFilledRectangleLayer(event);
+			break;
+
+		case CircleTool:
+			UpdateCircleLayer(event);
 			break;
 
 		case LineTool:

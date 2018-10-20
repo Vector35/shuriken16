@@ -34,6 +34,7 @@ class SpriteView: public EditorView
 	ToolWidget* m_penMode;
 	ToolWidget* m_rectMode;
 	ToolWidget* m_fillRectMode;
+	ToolWidget* m_circleMode;
 	ToolWidget* m_lineMode;
 	ToolWidget* m_fillMode;
 	ToolWidget* m_flipHorizontalMode;

@@ -45,6 +45,10 @@ SpriteView::SpriteView(MainWindow* parent, shared_ptr<Project> project, shared_p
 		[=]() { return m_editor->GetTool() == FilledRectangleTool; },
 		[=]() { m_editor->SetTool(FilledRectangleTool); UpdateToolState(); });
 	headerLayout->addWidget(m_fillRectMode);
+	m_circleMode = new ToolWidget("◯", "Circle",
+		[=]() { return m_editor->GetTool() == CircleTool; },
+		[=]() { m_editor->SetTool(CircleTool); UpdateToolState(); });
+	headerLayout->addWidget(m_circleMode);
 	m_lineMode = new ToolWidget("╱", "Line",
 		[=]() { return m_editor->GetTool() == LineTool; },
 		[=]() { m_editor->SetTool(LineTool); UpdateToolState(); });

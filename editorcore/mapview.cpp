@@ -46,6 +46,10 @@ MapView::MapView(MainWindow* parent, shared_ptr<Project> project, shared_ptr<Map
 	m_fillRectMode = new ToolWidget("■", "Filled Rectangle",
 		[=]() { return m_editor->GetTool() == FilledRectangleTool; },
 		[=]() { m_editor->SetTool(FilledRectangleTool); UpdateToolState(); });
+	m_circleMode = new ToolWidget("◯", "Circle",
+		[=]() { return m_editor->GetTool() == CircleTool; },
+		[=]() { m_editor->SetTool(CircleTool); UpdateToolState(); });
+	headerLayout->addWidget(m_circleMode);
 	headerLayout->addWidget(m_fillRectMode);
 	m_lineMode = new ToolWidget("╱", "Line",
 		[=]() { return m_editor->GetTool() == LineTool; },

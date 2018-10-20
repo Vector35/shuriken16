@@ -85,6 +85,7 @@ class SpriteEditorWidget: public QWidget
 	void FinishMoveSelectionLayer();
 	void UpdateRectangleLayer(QMouseEvent* event);
 	void UpdateFilledRectangleLayer(QMouseEvent* event);
+	void UpdateCircleLayer(QMouseEvent* event);
 	void UpdateLineLayer(QMouseEvent* event);
 	void Fill(QMouseEvent* event);
 

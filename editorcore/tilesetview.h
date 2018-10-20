@@ -36,6 +36,7 @@ class TileSetView: public EditorView
 	ToolWidget* m_selectMode;
 	ToolWidget* m_penMode;
 	ToolWidget* m_rectMode;
+	ToolWidget* m_circleMode;
 	ToolWidget* m_fillRectMode;
 	ToolWidget* m_lineMode;
 	ToolWidget* m_fillMode;
