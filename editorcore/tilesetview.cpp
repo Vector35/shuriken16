@@ -95,7 +95,7 @@ TileSetView::TileSetView(MainWindow* parent, shared_ptr<Project> project, shared
 
 	m_collisionChannel = new QComboBox();
 	QStringList layers;
-	layers.append("All Layers");
+	layers.append("All Channels");
 	m_collisionChannelIndicies.push_back(COLLISION_CHANNEL_ALL);
 	for (auto& i : Tile::GetCollisionChannelNames())
 	{

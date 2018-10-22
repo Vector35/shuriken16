@@ -331,8 +331,8 @@ impl MapLayer {
 	}
 
 	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize, channel: u32) -> Option<isize> {
-		let left_tile = min(rect.x, final_x) / self.tile_width as isize;
-		let right_tile = (max(rect.x, final_x) + rect.width - 1) / self.tile_width as isize;
+		let mut left_tile = min(rect.x, final_x) / self.tile_width as isize;
+		let mut right_tile = (max(rect.x, final_x) + rect.width - 1) / self.tile_width as isize;
 		let top_tile = rect.y / self.tile_height as isize;
 		let bottom_tile = (rect.y + rect.height - 1) / self.tile_height as isize;
 
@@ -351,15 +351,17 @@ impl MapLayer {
 			}
 			revised_x = 0;
 			collision = Some(0);
+			left_tile = 0;
 		}
 
 		if right_tile >= self.width as isize {
 			// Heads out of bounds, find exit point
-			if (rect.x + rect.width) > (self.width * self.tile_width) as isize {
+			if (rect.x + rect.width) >= (self.width * self.tile_width) as isize {
 				return Some(rect.x);
 			}
 			revised_x = (self.width * self.tile_width) as isize - rect.width;
 			collision = Some(revised_x);
+			right_tile = self.width as isize - 1;
 		}
 
 		for tile_y in top_tile ..= bottom_tile {
@@ -438,8 +440,8 @@ impl MapLayer {
 	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize, channel: u32) -> Option<isize> {
 		let left_tile = rect.x / self.tile_width as isize;
 		let right_tile = (rect.x + rect.width - 1) / self.tile_width as isize;
-		let top_tile = min(rect.y, final_y) / self.tile_height as isize;
-		let bottom_tile = (max(rect.y, final_y) + rect.height - 1) / self.tile_height as isize;
+		let mut top_tile = min(rect.y, final_y) / self.tile_height as isize;
+		let mut bottom_tile = (max(rect.y, final_y) + rect.height - 1) / self.tile_height as isize;
 
 		let mut revised_y = final_y;
 		let mut collision = None;
@@ -456,15 +458,17 @@ impl MapLayer {
 			}
 			revised_y = 0;
 			collision = Some(0);
+			top_tile = 0;
 		}
 
 		if bottom_tile >= self.height as isize {
 			// Heads out of bounds, find exit point
-			if (rect.y + rect.height) > (self.height * self.tile_height) as isize {
+			if (rect.y + rect.height) >= (self.height * self.tile_height) as isize {
 				return Some(rect.y);
 			}
 			revised_y = (self.height * self.tile_height) as isize - rect.height;
 			collision = Some(revised_y);
+			bottom_tile = self.height as isize - 1;
 		}
 
 		for tile_y in top_tile ..= bottom_tile {
