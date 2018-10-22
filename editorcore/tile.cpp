@@ -7,6 +7,9 @@
 using namespace std;
 
 
+map<uint32_t, string> Tile::m_collisionChannelNames;
+
+
 Tile::Tile(uint16_t width, uint16_t height, uint16_t depth, uint16_t frames)
 {
 	m_width = width;
@@ -161,6 +164,32 @@ void Tile::SetPalette(const shared_ptr<Palette> palette, uint8_t offset)
 }
 
 
+vector<BoundingRect> Tile::GetCollision(uint32_t channel) const
+{
+	if (channel == COLLISION_CHANNEL_ALL)
+		return m_collision;
+	auto i = m_collisionChannels.find(channel);
+	if (i == m_collisionChannels.end())
+		return vector<BoundingRect>();
+	return i->second;
+}
+
+
+void Tile::SetCollision(uint32_t channel, const vector<BoundingRect>& collision)
+{
+	if (channel == COLLISION_CHANNEL_ALL)
+	{
+		m_collision = collision;
+		return;
+	}
+
+	if (collision.size() == 0)
+		m_collisionChannels.erase(channel);
+	else
+		m_collisionChannels[channel] = collision;
+}
+
+
 Json::Value Tile::Serialize()
 {
 	Json::Value tile(Json::objectValue);
@@ -192,6 +221,29 @@ Json::Value Tile::Serialize()
 			collision.append(rect);
 		}
 		tile["collision"] = collision;
+	}
+
+	if (m_collisionChannels.size() > 0)
+	{
+		Json::Value collisionChannels(Json::arrayValue);
+		for (auto& i : m_collisionChannels)
+		{
+			Json::Value collision(Json::objectValue);
+			collision["channel"] = i.first;
+			Json::Value bounds(Json::arrayValue);
+			for (auto& j : i.second)
+			{
+				Json::Value rect(Json::objectValue);
+				rect["x"] = j.x;
+				rect["y"] = j.y;
+				rect["w"] = j.width;
+				rect["h"] = j.height;
+				bounds.append(rect);
+			}
+			collision["bounds"] = bounds;
+			collisionChannels.append(collision);
+		}
+		tile["collision_channels"] = collisionChannels;
 	}
 
 	return tile;
@@ -228,5 +280,36 @@ shared_ptr<Tile> Tile::Deserialize(shared_ptr<Project> project, const Json::Valu
 		}
 	}
 
+	if (data.isMember("collision_channels"))
+	{
+		for (auto& i : data["collision_channels"])
+		{
+			uint32_t idx = i["channel"].asUInt();
+			vector<BoundingRect> bounds;
+			for (auto& j : i["bounds"])
+			{
+				BoundingRect rect;
+				rect.x = (uint16_t)j["x"].asUInt();
+				rect.y = (uint16_t)j["y"].asUInt();
+				rect.width = (uint16_t)j["w"].asUInt();
+				rect.height = (uint16_t)j["h"].asUInt();
+				bounds.push_back(rect);
+			}
+			result->m_collisionChannels[idx] = bounds;
+		}
+	}
+
 	return result;
+}
+
+
+void Tile::RegisterCollisionChannel(uint32_t idx, const string& name)
+{
+	m_collisionChannelNames[idx] = name;
+}
+
+
+map<uint32_t, string> Tile::GetCollisionChannelNames()
+{
+	return m_collisionChannelNames;
 }

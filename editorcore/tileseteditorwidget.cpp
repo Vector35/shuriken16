@@ -36,6 +36,7 @@ TileSetEditorWidget::TileSetEditorWidget(QWidget* parent, MainWindow* mainWindow
 	m_showHover = false;
 	m_tool = PenTool;
 	m_frame = 0;
+	m_collisionChannel = COLLISION_CHANNEL_ALL;
 
 	setMouseTracking(true);
 }
@@ -338,7 +339,7 @@ void TileSetEditorWidget::paintEvent(QPaintEvent* event)
 
 			if (m_tool == CollisionTool)
 			{
-				for (auto& i : tile->GetCollision())
+				for (auto& i : tile->GetCollision(m_collisionChannel))
 				{
 					p.setPen(QPen(QBrush(Theme::red), 2, Qt::DashDotLine));
 					p.drawRect(tileWidth * tileX + i.x * m_zoom + (m_zoom / 4), tileHeight * tileY + i.y * m_zoom + (m_zoom / 4),
@@ -1014,19 +1015,20 @@ void TileSetEditorWidget::AddSelectionAsCollision()
 	if ((rect.y + rect.height) > m_tileSet->GetHeight())
 		rect.height = m_tileSet->GetHeight() - rect.y;
 
-	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> oldCollision = tile->GetCollision(m_collisionChannel);
 	vector<BoundingRect> newCollision = oldCollision;
 	newCollision.push_back(rect);
 
-	tile->SetCollision(newCollision);
+	tile->SetCollision(m_collisionChannel, newCollision);
 	m_mainWindow->UpdateTileSetContents(m_tileSet);
 
 	MainWindow* mainWindow = m_mainWindow;
 	shared_ptr<TileSet> tileSet = m_tileSet;
+	uint32_t collisionChannel = m_collisionChannel;
 	m_mainWindow->AddUndoAction(
 		[=]() { // Undo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(oldCollision);
+			tile->SetCollision(collisionChannel, oldCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1037,7 +1039,7 @@ void TileSetEditorWidget::AddSelectionAsCollision()
 		},
 		[=]() { // Redo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(newCollision);
+			tile->SetCollision(collisionChannel, newCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1080,19 +1082,20 @@ void TileSetEditorWidget::SetSelectionAsCollision()
 	if ((rect.y + rect.height) > m_tileSet->GetHeight())
 		rect.height = m_tileSet->GetHeight() - rect.y;
 
-	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> oldCollision = tile->GetCollision(m_collisionChannel);
 	vector<BoundingRect> newCollision;
 	newCollision.push_back(rect);
 
-	tile->SetCollision(newCollision);
+	tile->SetCollision(m_collisionChannel, newCollision);
 	m_mainWindow->UpdateTileSetContents(m_tileSet);
 
 	MainWindow* mainWindow = m_mainWindow;
 	shared_ptr<TileSet> tileSet = m_tileSet;
+	uint32_t collisionChannel = m_collisionChannel;
 	m_mainWindow->AddUndoAction(
 		[=]() { // Undo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(oldCollision);
+			tile->SetCollision(collisionChannel, oldCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1103,7 +1106,7 @@ void TileSetEditorWidget::SetSelectionAsCollision()
 		},
 		[=]() { // Redo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(newCollision);
+			tile->SetCollision(collisionChannel, newCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1129,18 +1132,19 @@ void TileSetEditorWidget::RemoveSingleCollision()
 	if (!tile)
 		return;
 
-	vector<BoundingRect> oldCollision = tile->GetCollision();
+	vector<BoundingRect> oldCollision = tile->GetCollision(m_collisionChannel);
 	vector<BoundingRect> newCollision;
 
-	tile->SetCollision(newCollision);
+	tile->SetCollision(m_collisionChannel, newCollision);
 	m_mainWindow->UpdateTileSetContents(m_tileSet);
 
 	MainWindow* mainWindow = m_mainWindow;
 	shared_ptr<TileSet> tileSet = m_tileSet;
+	uint32_t collisionChannel = m_collisionChannel;
 	m_mainWindow->AddUndoAction(
 		[=]() { // Undo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(oldCollision);
+			tile->SetCollision(collisionChannel, oldCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1151,7 +1155,7 @@ void TileSetEditorWidget::RemoveSingleCollision()
 		},
 		[=]() { // Redo
 			shared_ptr<Tile> tile = tileSet->GetTile(tileIndex);
-			tile->SetCollision(newCollision);
+			tile->SetCollision(collisionChannel, newCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1943,8 +1947,9 @@ void TileSetEditorWidget::RemoveCollisions()
 
 		CollisionUpdateAction action;
 		action.tileIndex = i;
-		action.oldCollision = tile->GetCollision();
-		tile->SetCollision(action.newCollision);
+		action.channel = m_collisionChannel;
+		action.oldCollision = tile->GetCollision(m_collisionChannel);
+		tile->SetCollision(m_collisionChannel, action.newCollision);
 		actions.push_back(action);
 	}
 
@@ -1955,7 +1960,7 @@ void TileSetEditorWidget::RemoveCollisions()
 	m_mainWindow->AddUndoAction(
 		[=]() { // Undo
 			for (auto& i : actions)
-				tileSet->GetTile(i.tileIndex)->SetCollision(i.oldCollision);
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.channel, i.oldCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1966,7 +1971,7 @@ void TileSetEditorWidget::RemoveCollisions()
 		},
 		[=]() { // Redo
 			for (auto& i : actions)
-				tileSet->GetTile(i.tileIndex)->SetCollision(i.newCollision);
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.channel, i.newCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -1997,9 +2002,10 @@ void TileSetEditorWidget::CollideWithAll()
 
 		CollisionUpdateAction action;
 		action.tileIndex = i;
-		action.oldCollision = tile->GetCollision();
+		action.channel = m_collisionChannel;
+		action.oldCollision = tile->GetCollision(m_collisionChannel);
 		action.newCollision.push_back(rect);
-		tile->SetCollision(action.newCollision);
+		tile->SetCollision(m_collisionChannel, action.newCollision);
 		actions.push_back(action);
 	}
 
@@ -2010,7 +2016,7 @@ void TileSetEditorWidget::CollideWithAll()
 	m_mainWindow->AddUndoAction(
 		[=]() { // Undo
 			for (auto& i : actions)
-				tileSet->GetTile(i.tileIndex)->SetCollision(i.oldCollision);
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.channel, i.oldCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -2021,7 +2027,7 @@ void TileSetEditorWidget::CollideWithAll()
 		},
 		[=]() { // Redo
 			for (auto& i : actions)
-				tileSet->GetTile(i.tileIndex)->SetCollision(i.newCollision);
+				tileSet->GetTile(i.tileIndex)->SetCollision(i.channel, i.newCollision);
 			mainWindow->UpdateTileSetContents(tileSet);
 			TileSetView* view = mainWindow->GetTileSetView(tileSet);
 			if (view)
@@ -2030,4 +2036,11 @@ void TileSetEditorWidget::CollideWithAll()
 				view->UpdateToolState();
 			}
 		});
+}
+
+
+void TileSetEditorWidget::SetCollisionChannel(uint32_t channel)
+{
+	m_collisionChannel = channel;
+	update();
 }

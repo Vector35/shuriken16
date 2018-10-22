@@ -1,9 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <map>
 #include <inttypes.h>
 #include "palette.h"
 #include "json/json.h"
+
+#define COLLISION_CHANNEL_ALL ((uint32_t)-1)
 
 class Project;
 
@@ -21,6 +24,9 @@ class Tile
 	std::shared_ptr<Palette> m_palette;
 	uint8_t m_paletteOffset;
 	std::vector<BoundingRect> m_collision;
+	std::map<uint32_t, std::vector<BoundingRect>> m_collisionChannels;
+
+	static std::map<uint32_t, std::string> m_collisionChannelNames;
 
 public:
 	Tile(uint16_t width, uint16_t height, uint16_t depth = 4, uint16_t frames = 1);
@@ -51,10 +57,13 @@ public:
 	uint8_t GetPaletteOffset() const { return m_paletteOffset; }
 	void SetPalette(const std::shared_ptr<Palette> palette, uint8_t offset);
 
-	const std::vector<BoundingRect> GetCollision() const { return m_collision; }
-	void SetCollision(const std::vector<BoundingRect>& collision) { m_collision = collision; }
+	std::vector<BoundingRect> GetCollision(uint32_t channel) const;
+	void SetCollision(uint32_t channel, const std::vector<BoundingRect>& collision);
 
 	Json::Value Serialize();
 	static std::shared_ptr<Tile> Deserialize(std::shared_ptr<Project> project, const Json::Value& data,
 		size_t width, size_t height, size_t depth, size_t frames);
+
+	static void RegisterCollisionChannel(uint32_t idx, const std::string& name);
+	static std::map<uint32_t, std::string> GetCollisionChannelNames();
 };

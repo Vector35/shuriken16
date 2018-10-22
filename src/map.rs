@@ -283,7 +283,7 @@ impl MapLayer {
 		self.tiles = new_tiles;
 	}
 
-	pub fn check_collision(&self, rect: &BoundingRect) -> bool {
+	pub fn check_collision(&self, rect: &BoundingRect, channel: u32) -> bool {
 		let left_tile = rect.x / self.tile_width as isize;
 		let right_tile = (rect.x + rect.width - 1) / self.tile_width as isize;
 		let top_tile = rect.y / self.tile_height as isize;
@@ -310,6 +310,19 @@ impl MapLayer {
 							return true;
 						}
 					}
+					if let Some(collision_channel) = tile.collision_channels.get(&channel) {
+						for tile_rect in collision_channel {
+							let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+							let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+							let check_width = tile_rect.width;
+							let check_height = tile_rect.height;
+
+							if (check_x < (rect.x + rect.width)) && (rect.x < (check_x + check_width)) &&
+								(check_y < (rect.y + rect.height)) && (rect.y < (check_y + check_height)) {
+								return true;
+							}
+						}
+					}
 				}
 			}
 		}
@@ -317,7 +330,7 @@ impl MapLayer {
 		false
 	}
 
-	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize) -> Option<isize> {
+	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize, channel: u32) -> Option<isize> {
 		let left_tile = min(rect.x, final_x) / self.tile_width as isize;
 		let right_tile = (max(rect.x, final_x) + rect.width - 1) / self.tile_width as isize;
 		let top_tile = rect.y / self.tile_height as isize;
@@ -383,6 +396,38 @@ impl MapLayer {
 							}
 						}
 					}
+					if let Some(collision_channel) = tile.collision_channels.get(&channel) {
+						for tile_rect in collision_channel {
+							let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+							let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+							let check_width = tile_rect.width;
+							let check_height = tile_rect.height;
+
+							if (check_y >= (rect.y + rect.height)) || (rect.y >= (check_y + check_height)) {
+								// Not colliding on y axis
+								continue;
+							}
+
+							if (check_x < (rect.x + rect.width)) && (rect.x < (check_x + check_width)) {
+								// Already colliding at start
+								return Some(rect.x);
+							}
+
+							if ((rect.x + rect.width) <= check_x) && (final_x > rect.x) {
+								if (check_x - rect.width) < revised_x {
+									// Found earlier collision moving to the right
+									revised_x = check_x - rect.width;
+									collision = Some(revised_x);
+								}
+							} else if (rect.x >= (check_x + check_width)) && (final_x < rect.x) {
+								if (check_x + check_width) > revised_x {
+									// Found earlier collision moving to the left
+									revised_x = check_x + check_width;
+									collision = Some(revised_x);
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -390,7 +435,7 @@ impl MapLayer {
 		collision
 	}
 
-	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize) -> Option<isize> {
+	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize, channel: u32) -> Option<isize> {
 		let left_tile = rect.x / self.tile_width as isize;
 		let right_tile = (rect.x + rect.width - 1) / self.tile_width as isize;
 		let top_tile = min(rect.y, final_y) / self.tile_height as isize;
@@ -453,6 +498,38 @@ impl MapLayer {
 								// Found earlier collision moving up
 								revised_y = check_y + check_height;
 								collision = Some(revised_y);
+							}
+						}
+					}
+					if let Some(collision_channel) = tile.collision_channels.get(&channel) {
+						for tile_rect in collision_channel {
+							let check_x = tile_x * self.tile_width as isize + tile_rect.x;
+							let check_y = tile_y * self.tile_height as isize + tile_rect.y;
+							let check_width = tile_rect.width;
+							let check_height = tile_rect.height;
+
+							if (check_x >= (rect.x + rect.width)) || (rect.x >= (check_x + check_width)) {
+								// Not colliding on x axis
+								continue;
+							}
+
+							if (check_y < (rect.y + rect.height)) && (rect.y < (check_y + check_height)) {
+								// Already colliding at start
+								return Some(rect.y);
+							}
+
+							if ((rect.y + rect.height) <= check_y) && (final_y > rect.y) {
+								if (check_y - rect.height) < revised_y {
+									// Found earlier collision moving down
+									revised_y = check_y - rect.height;
+									collision = Some(revised_y);
+								}
+							} else if (rect.y >= (check_y + check_height)) && (final_y < rect.y) {
+								if (check_y + check_height) > revised_y {
+									// Found earlier collision moving up
+									revised_y = check_y + check_height;
+									collision = Some(revised_y);
+								}
 							}
 						}
 					}
@@ -557,23 +634,23 @@ impl Map {
 		None
 	}
 
-	pub fn check_collision(&self, rect: &BoundingRect) -> bool {
+	pub fn check_collision(&self, rect: &BoundingRect, channel: u32) -> bool {
 		for layer in &self.layers {
-			if layer.check_collision(rect) {
+			if layer.check_collision(rect, channel) {
 				return true
 			}
 		}
 		false
 	}
 
-	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize) -> Option<isize> {
+	pub fn sweep_collision_x(&self, rect: &BoundingRect, final_x: isize, channel: u32) -> Option<isize> {
 		if rect.x == final_x {
 			return None;
 		}
 		let mut collision = None;
 		let mut revised_x = final_x;
 		for layer in &self.layers {
-			if let Some(new_x) = layer.sweep_collision_x(rect, revised_x) {
+			if let Some(new_x) = layer.sweep_collision_x(rect, revised_x, channel) {
 				revised_x = new_x;
 				collision = Some(new_x);
 			}
@@ -581,14 +658,14 @@ impl Map {
 		collision
 	}
 
-	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize) -> Option<isize> {
+	pub fn sweep_collision_y(&self, rect: &BoundingRect, final_y: isize, channel: u32) -> Option<isize> {
 		if rect.y == final_y {
 			return None;
 		}
 		let mut collision = None;
 		let mut revised_y = final_y;
 		for layer in &self.layers {
-			if let Some(new_y) = layer.sweep_collision_y(rect, revised_y) {
+			if let Some(new_y) = layer.sweep_collision_y(rect, revised_y, channel) {
 				revised_y = new_y;
 				collision = Some(new_y);
 			}

@@ -3,6 +3,7 @@ extern crate hex;
 
 use std::io;
 use std::rc::Rc;
+use std::collections::HashMap;
 use palette::Palette;
 use asset;
 use asset::AssetNamespace;
@@ -17,11 +18,18 @@ struct RawBoundingRect {
 }
 
 #[derive(Serialize, Deserialize)]
+struct RawCollisionChannel {
+	pub channel: u32,
+	pub bounds: Vec<RawBoundingRect>
+}
+
+#[derive(Serialize, Deserialize)]
 struct RawTile {
 	pub palette: Option<String>,
 	pub offset: Option<usize>,
 	pub data: String,
-	pub collision: Option<Vec<RawBoundingRect>>
+	pub collision: Option<Vec<RawBoundingRect>>,
+	pub collision_channels: Option<Vec<RawCollisionChannel>>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,7 +52,8 @@ pub struct PaletteWithOffset {
 pub struct Tile {
 	pub palette: Option<PaletteWithOffset>,
 	pub data: Vec<u8>,
-	pub collision: Vec<BoundingRect>
+	pub collision: Vec<BoundingRect>,
+	pub collision_channels: HashMap<u32, Vec<BoundingRect>>
 }
 
 pub struct Animation {
@@ -190,7 +199,23 @@ impl TileSet {
 				}
 			}
 
-			tile_set.tiles.push(Tile { palette, data, collision });
+			let mut collision_channels = HashMap::new();
+			if let Some(raw_collision_channels) = raw_tile.collision_channels {
+				for channel in raw_collision_channels {
+					let mut bounds = Vec::new();
+					for rect in channel.bounds {
+						bounds.push(BoundingRect {
+							x: rect.x as isize,
+							y: rect.y as isize,
+							width: rect.w as isize,
+							height: rect.h as isize
+						});
+					}
+					collision_channels.insert(channel.channel, bounds);
+				}
+			}
+
+			tile_set.tiles.push(Tile { palette, data, collision, collision_channels });
 		}
 
 		Ok(Rc::new(tile_set))

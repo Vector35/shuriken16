@@ -100,7 +100,7 @@ ChoiceFieldInstanceEditorWidget::ChoiceFieldInstanceEditorWidget(const QStringLi
 		if (!value->GetValue().isNull())
 		{
 			QString choice = QString::fromStdString(value->GetValue().asString());
-			for (size_t i = 0; i < m_choices.size(); i++)
+			for (size_t i = 0; i < (size_t)m_choices.size(); i++)
 			{
 				if (m_choices[i] == choice)
 					m_combo->setCurrentIndex(i);

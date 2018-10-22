@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QCheckBox>
+#include <QComboBox>
 #include "project.h"
 #include "tileset.h"
 #include "tileseteditorwidget.h"
@@ -49,6 +50,9 @@ class TileSetView: public EditorView
 	ToolWidget* m_removeCollisions;
 	ToolWidget* m_collideWithAll;
 
+	QComboBox* m_collisionChannel;
+	std::vector<uint32_t> m_collisionChannelIndicies;
+
 	QTimer* m_deferredUpdateTimer;
 	std::chrono::steady_clock::time_point m_lastUpdate;
 	bool m_firstUpdate;
@@ -79,4 +83,5 @@ private slots:
 	void ResizeTileSet();
 	void SetPreviewAnimation(int state);
 	void OnDeferredUpdateTimer();
+	void OnCollisionChannelChanged(int layer);
 };

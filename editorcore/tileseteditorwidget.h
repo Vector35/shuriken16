@@ -54,6 +54,7 @@ class TileSetEditorWidget: public QWidget
 	struct CollisionUpdateAction
 	{
 		size_t tileIndex;
+		uint32_t channel;
 		std::vector<BoundingRect> oldCollision, newCollision;
 	};
 
@@ -62,6 +63,7 @@ class TileSetEditorWidget: public QWidget
 	std::shared_ptr<Project> m_project;
 	std::shared_ptr<TileSet> m_tileSet;
 	uint16_t m_frame;
+	uint32_t m_collisionChannel;
 
 	std::shared_ptr<Palette> m_palette;
 	size_t m_leftPaletteEntry, m_rightPaletteEntry;
@@ -148,6 +150,8 @@ public:
 
 	void RemoveCollisions();
 	void CollideWithAll();
+
+	void SetCollisionChannel(uint32_t channel);
 
 protected:
 	virtual void paintEvent(QPaintEvent* event) override;

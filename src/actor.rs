@@ -31,10 +31,11 @@ pub struct ActorInfo {
 	pub velocity_x: isize,
 	pub velocity_y: isize,
 	pub collision_bounds: Option<BoundingRect>,
+	pub collision_channel: u32,
 	pub blocking_collision: bool,
 	pub sprites: Vec<SpriteWithOffset>,
 	pub destroyed: bool,
-	pub health: i32
+	pub health: i32,
 }
 
 pub type ActorRef = Rc<RefCell<Box<Actor>>>;
@@ -153,7 +154,7 @@ pub trait Actor: ActorAsAny {
 			};
 
 			if let Some(map) = &game_state.map {
-				if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset) {
+				if let Some(revised_x) = map.sweep_collision_x(&bounds, new_x + collision_x_offset, actor_info.collision_channel) {
 					new_x = revised_x - collision_x_offset;
 					full_x = new_x << 8;
 					actor_info.velocity_x = 0;
@@ -191,7 +192,7 @@ pub trait Actor: ActorAsAny {
 
 				bounds.x = new_x + collision_x_offset;
 
-				if let Some(revised_y) = map.sweep_collision_y(&bounds, new_y + collision_y_offset) {
+				if let Some(revised_y) = map.sweep_collision_y(&bounds, new_y + collision_y_offset, actor_info.collision_channel) {
 					new_y = revised_y - collision_y_offset;
 					full_y = new_y << 8;
 					actor_info.velocity_y = 0;
@@ -375,6 +376,7 @@ impl ActorInfo {
 			velocity_x: 0,
 			velocity_y: 0,
 			collision_bounds: None,
+			collision_channel: 0,
 			blocking_collision: false,
 			sprites: Vec::new(),
 			destroyed: false,

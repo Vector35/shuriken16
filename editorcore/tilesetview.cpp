@@ -93,6 +93,23 @@ TileSetView::TileSetView(MainWindow* parent, shared_ptr<Project> project, shared
 		[=]() { m_editor->CollideWithAll(); UpdateToolState(); });
 	headerLayout->addWidget(m_collideWithAll);
 
+	m_collisionChannel = new QComboBox();
+	QStringList layers;
+	layers.append("All Layers");
+	m_collisionChannelIndicies.push_back(COLLISION_CHANNEL_ALL);
+	for (auto& i : Tile::GetCollisionChannelNames())
+	{
+		layers.append(QString::fromStdString(i.second));
+		m_collisionChannelIndicies.push_back(i.first);
+	}
+	m_collisionChannel->setEditable(false);
+	m_collisionChannel->addItems(layers);
+	m_collisionChannel->setCurrentIndex(0);
+	connect(m_collisionChannel, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &TileSetView::OnCollisionChannelChanged);
+	m_collisionChannel->hide();
+	headerLayout->addSpacing(16);
+	headerLayout->addWidget(m_collisionChannel);
+
 	m_colCount = new QLabel();
 	headerLayout->addStretch(1);
 	headerLayout->addWidget(m_colCount);
@@ -189,9 +206,12 @@ void TileSetView::UpdateToolState()
 	m_penMode->UpdateState();
 	m_rectMode->UpdateState();
 	m_fillRectMode->UpdateState();
+	m_circleMode->UpdateState();
 	m_lineMode->UpdateState();
 	m_fillMode->UpdateState();
 	m_collisionMode->UpdateState();
+
+	m_collisionChannel->setVisible(m_editor->GetTool() == CollisionTool);
 }
 
 
@@ -416,4 +436,12 @@ void TileSetView::SelectAll()
 void TileSetView::SetPreviewAnimation(int state)
 {
 	m_preview->SetPreviewAnimation(state == Qt::Checked);
+}
+
+
+void TileSetView::OnCollisionChannelChanged(int channel)
+{
+	if (channel >= (int)m_collisionChannelIndicies.size())
+		return;
+	m_editor->SetCollisionChannel(m_collisionChannelIndicies[channel]);
 }
