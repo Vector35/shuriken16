@@ -137,11 +137,17 @@ pub struct GameState {
 	pub last_click_button: Option<MouseButton>,
 	pub last_click_x: Option<isize>,
 	pub last_click_y: Option<isize>,
-	pub clipboard: ClipboardUtil,
+	pub clipboard: Option<ClipboardUtil>,
 	pub global_mouse_pos_x: isize,
 	pub global_mouse_pos_y: isize,
 	pub save_slot: RefCell<usize>,
 	pub paused: RefCell<bool>
+}
+
+pub struct FramePace {
+	last_frame_instant: Instant,
+	frame_pace_error_ns: i64,
+	frame_skip_count: usize
 }
 
 pub struct RenderState {
@@ -157,9 +163,7 @@ pub struct RenderState {
 	window_dest_size: RenderSize,
 	render_buf: Vec<Vec<u32>>,
 	texture: Texture,
-	last_frame_instant: Instant,
-	frame_pace_error_ns: i64,
-	frame_skip_count: usize
+	frame_pace: FramePace
 }
 
 pub trait Game {
@@ -900,7 +904,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		last_click_button: None,
 		last_click_x: None,
 		last_click_y: None,
-		clipboard: video.clipboard(),
+		clipboard: Some(video.clipboard()),
 		global_mouse_pos_x: 0,
 		global_mouse_pos_y: 0,
 		save_slot: RefCell::new(0),
@@ -913,88 +917,67 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		resolution_target: target,
 		dest_size, window_dest_size,
 		render_buf, texture,
-		last_frame_instant: Instant::now(),
-		frame_pace_error_ns: 0,
-		frame_skip_count: 0
+		frame_pace: FramePace {
+			last_frame_instant: Instant::now(),
+			frame_pace_error_ns: 0,
+			frame_skip_count: 0
+		}
 	};
 	(game, render_state)
 }
 
-fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &mut RenderState) {
-	#[cfg(target_os = "emscripten")] {
-		let (cur_width, cur_height) = emscripten::get_canvas_size();
-		if (cur_width != render_state.window_width) || (cur_height != render_state.window_height) {
-			render_state.canvas.window_mut().set_size(cur_width as u32, cur_height as u32).unwrap();
-		}
-	}
+fn init_headless(game: &Box<Game>) -> (GameState, FramePace) {
+	let game_state = GameState {
+		assets: AssetNamespace::new(),
+		map: None,
+		ui_layouts: Vec::new(),
+		actors: Vec::new(),
+		persistent_actors: Vec::new(),
+		controlled_actor: None,
+		camera: None,
+		camera_shake_x: 0,
+		camera_shake_y: 0,
+		render_size: RenderSize { width: 320, height: 240 },
+		scroll_x: 0, scroll_y: 0,
+		fade_alpha: match game.fade_in_on_start() {
+			true => 16,
+			false => 0
+		},
+		target_fade_alpha: 0,
+		frame: 0,
+		rendered_frame: 0,
+		key_bindings: HashMap::new(),
+		axis_bindings: HashMap::new(),
+		button_bindings: HashMap::new(),
+		hat_bindings: HashMap::new(),
+		ui_key_bindings: HashMap::new(),
+		ui_axis_bindings: HashMap::new(),
+		ui_button_bindings: HashMap::new(),
+		ui_hat_bindings: HashMap::new(),
+		actor_loaders: HashMap::new(),
+		pending_events: RefCell::new(Vec::new()),
+		last_click_frame: None,
+		last_click_button: None,
+		last_click_x: None,
+		last_click_y: None,
+		clipboard: None,
+		global_mouse_pos_x: 0,
+		global_mouse_pos_y: 0,
+		save_slot: RefCell::new(0),
+		paused: RefCell::new(false)
+	};
+	let frame_pace = FramePace {
+		last_frame_instant: Instant::now(),
+		frame_pace_error_ns: 0,
+		frame_skip_count: 0
+	};
+	(game_state, frame_pace)
+}
 
-	for event in render_state.events.poll_iter() {
-		match event {
-			Event::Quit {..} => process::exit(0),
-
-			Event::KeyDown {keycode: Some(keycode), keymod, ..} =>
-				game_state.key_down(keycode, keymod),
-			Event::KeyUp {keycode: Some(keycode), keymod, ..} =>
-				game_state.key_up(keycode, keymod),
-
-			Event::JoyAxisMotion {axis_idx, value, ..} =>
-				game_state.axis_changed(axis_idx, value),
-			Event::JoyButtonDown {button_idx, ..} =>
-				game_state.button_down(button_idx),
-			Event::JoyButtonUp {button_idx, ..} =>
-				game_state.button_up(button_idx),
-			Event::JoyHatMotion {hat_idx, state, ..} =>
-				game_state.hat_changed(hat_idx, state),
-
-			Event::MouseButtonDown {x, y, mouse_btn, ..} =>
-				game_state.mouse_button_down(x as isize, y as isize, mouse_btn, render_state.window_width,
-					render_state.window_height, &render_state.window_dest_size),
-			Event::MouseButtonUp {x, y, mouse_btn, ..} =>
-				game_state.mouse_button_up(x as isize, y as isize, mouse_btn, render_state.window_width,
-					render_state.window_height, &render_state.window_dest_size),
-			Event::MouseMotion {x, y, ..} =>
-				game_state.mouse_move(x as isize, y as isize, render_state.window_width,
-					render_state.window_height, &render_state.window_dest_size),
-			Event::MouseWheel {x, y, ..} =>
-				game_state.mouse_wheel(x as isize, y as isize),
-
-			Event::TextInput {text, ..} =>
-				game_state.text_input(&text),
-
-			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
-				let draw_size = render_state.canvas.window().drawable_size();
-				render_state.screen_width = draw_size.0 as usize;
-				render_state.screen_height = draw_size.1 as usize;
-				render_state.window_width = width as usize;
-				render_state.window_height = height as usize;
-				let (render_size, dest_size) = render_state.resolution_target.compute_render_sizes(
-					render_state.screen_width, render_state.screen_height);
-
-				game_state.render_size = render_size;
-				render_state.window_dest_size = RenderSize {
-					width: (dest_size.width * render_state.window_width) / render_state.screen_width,
-					height: (dest_size.height * render_state.window_height) / render_state.screen_height
-				};
-				render_state.dest_size = dest_size;
-
-				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB888,
-					game_state.render_size.width as u32, game_state.render_size.height as u32).unwrap();
-
-				render_state.render_buf = Vec::new();
-				for _ in 0 .. game_state.render_size.height {
-					let mut line = Vec::new();
-					line.resize(game_state.render_size.width, 0);
-					render_state.render_buf.push(line);
-				}
-			},
-
-			_ => {}
-		}
-	}
-
+fn next_game_frame(game: &mut Box<Game>, game_state: &mut GameState, frame_pace: &mut FramePace) {
 	// If frame rate dips, we may need to skip frames to ensure consistent play. Run the actor updates as many
 	// times as needed to catch up.
-	let game_update_count = render_state.frame_skip_count + 1;
+	let game_update_count = frame_pace.frame_skip_count + 1;
 	for _ in 0..game_update_count {
 		// Handle events that were created by actor processing
 		let event_list = game_state.get_pending_events();
@@ -1111,6 +1094,103 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 
 		game_state.frame += 1;
 	}
+}
+
+fn frame_pacing(frame_pace: &mut FramePace) {
+	let now = Instant::now();
+	let frame_duration = now.duration_since(frame_pace.last_frame_instant.clone());
+	let mut frame_ns = frame_pace.frame_pace_error_ns +
+		if frame_duration.as_secs() == 0 { frame_duration.subsec_nanos() as i64 } else { 1_000_000_000 } -
+		(frame_pace.frame_skip_count as i64 * 16_666_666);
+	if frame_ns > 100_000_000 {
+		frame_ns = 100_000_000;
+	}
+	frame_pace.frame_pace_error_ns = frame_ns - 16_666_666;
+	frame_pace.frame_skip_count = 0;
+	if frame_ns < 16_000_000 {
+		sleep(Duration::from_nanos((16_000_000 - frame_ns) as u64));
+	} else if frame_ns >= 33_333_332 {
+		frame_pace.frame_skip_count = ((frame_ns / 16_666_666) - 1) as usize;
+		if frame_pace.frame_skip_count > 3 {
+			frame_pace.frame_skip_count = 3;
+		}
+	}
+	frame_pace.last_frame_instant = now;
+}
+
+fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &mut RenderState) {
+	#[cfg(target_os = "emscripten")] {
+		let (cur_width, cur_height) = emscripten::get_canvas_size();
+		if (cur_width != render_state.window_width) || (cur_height != render_state.window_height) {
+			render_state.canvas.window_mut().set_size(cur_width as u32, cur_height as u32).unwrap();
+		}
+	}
+
+	for event in render_state.events.poll_iter() {
+		match event {
+			Event::Quit {..} => process::exit(0),
+
+			Event::KeyDown {keycode: Some(keycode), keymod, ..} =>
+				game_state.key_down(keycode, keymod),
+			Event::KeyUp {keycode: Some(keycode), keymod, ..} =>
+				game_state.key_up(keycode, keymod),
+
+			Event::JoyAxisMotion {axis_idx, value, ..} =>
+				game_state.axis_changed(axis_idx, value),
+			Event::JoyButtonDown {button_idx, ..} =>
+				game_state.button_down(button_idx),
+			Event::JoyButtonUp {button_idx, ..} =>
+				game_state.button_up(button_idx),
+			Event::JoyHatMotion {hat_idx, state, ..} =>
+				game_state.hat_changed(hat_idx, state),
+
+			Event::MouseButtonDown {x, y, mouse_btn, ..} =>
+				game_state.mouse_button_down(x as isize, y as isize, mouse_btn, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
+			Event::MouseButtonUp {x, y, mouse_btn, ..} =>
+				game_state.mouse_button_up(x as isize, y as isize, mouse_btn, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
+			Event::MouseMotion {x, y, ..} =>
+				game_state.mouse_move(x as isize, y as isize, render_state.window_width,
+					render_state.window_height, &render_state.window_dest_size),
+			Event::MouseWheel {x, y, ..} =>
+				game_state.mouse_wheel(x as isize, y as isize),
+
+			Event::TextInput {text, ..} =>
+				game_state.text_input(&text),
+
+			Event::Window {win_event: WindowEvent::SizeChanged(width, height), ..} => {
+				let draw_size = render_state.canvas.window().drawable_size();
+				render_state.screen_width = draw_size.0 as usize;
+				render_state.screen_height = draw_size.1 as usize;
+				render_state.window_width = width as usize;
+				render_state.window_height = height as usize;
+				let (render_size, dest_size) = render_state.resolution_target.compute_render_sizes(
+					render_state.screen_width, render_state.screen_height);
+
+				game_state.render_size = render_size;
+				render_state.window_dest_size = RenderSize {
+					width: (dest_size.width * render_state.window_width) / render_state.screen_width,
+					height: (dest_size.height * render_state.window_height) / render_state.screen_height
+				};
+				render_state.dest_size = dest_size;
+
+				render_state.texture = render_state.canvas.create_texture_streaming(PixelFormatEnum::RGB888,
+					game_state.render_size.width as u32, game_state.render_size.height as u32).unwrap();
+
+				render_state.render_buf = Vec::new();
+				for _ in 0 .. game_state.render_size.height {
+					let mut line = Vec::new();
+					line.resize(game_state.render_size.width, 0);
+					render_state.render_buf.push(line);
+				}
+			},
+
+			_ => {}
+		}
+	}
+
+	next_game_frame(game, game_state, &mut render_state.frame_pace);
 
 	// Render game at internal resolution
 	render::render_frame(&game_state.render_size, &mut render_state.render_buf, &game_state);
@@ -1135,25 +1215,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	render_state.canvas.present();
 
 	// Enforce 60 FPS
-	let now = Instant::now();
-	let frame_duration = now.duration_since(render_state.last_frame_instant.clone());
-	let mut frame_ns = render_state.frame_pace_error_ns +
-		if frame_duration.as_secs() == 0 { frame_duration.subsec_nanos() as i64 } else { 1_000_000_000 } -
-		(render_state.frame_skip_count as i64 * 16_666_666);
-	if frame_ns > 100_000_000 {
-		frame_ns = 100_000_000;
-	}
-	render_state.frame_pace_error_ns = frame_ns - 16_666_666;
-	render_state.frame_skip_count = 0;
-	if frame_ns < 16_000_000 {
-		sleep(Duration::from_nanos((16_000_000 - frame_ns) as u64));
-	} else if frame_ns >= 33_333_332 {
-		render_state.frame_skip_count = ((frame_ns / 16_666_666) - 1) as usize;
-		if render_state.frame_skip_count > 3 {
-			render_state.frame_skip_count = 3;
-		}
-	}
-	render_state.last_frame_instant = now;
+	frame_pacing(&mut render_state.frame_pace);
 
 	#[cfg(target_os = "macos")] {
 		// Hack for Mojave, without this we're doomed to a black screen
@@ -1162,6 +1224,12 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 		}
 	}
 
+	game_state.rendered_frame += 1;
+}
+
+fn next_frame_headless(game: &mut Box<Game>, game_state: &mut GameState, frame_pace: &mut FramePace) {
+	next_game_frame(game, game_state, frame_pace);
+	frame_pacing(frame_pace);
 	game_state.rendered_frame += 1;
 }
 
@@ -1252,4 +1320,11 @@ pub fn run(mut game: Box<Game>) {
 
 	#[cfg(not(target_os = "emscripten"))]
 	loop { next_frame(&mut game, &mut game_state, &mut render_state); }
+}
+
+#[cfg(not(target_os = "emscripten"))]
+pub fn run_headless(mut game: Box<Game>) -> GameState {
+	let (mut game_state, mut frame_pace) = init_headless(&game);
+	game.init(&mut game_state);
+	loop { next_frame_headless(&mut game, &mut game_state, &mut frame_pace); }
 }
