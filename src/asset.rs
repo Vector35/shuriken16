@@ -1,11 +1,17 @@
 extern crate serde_json;
+extern crate inflate;
+extern crate crypto;
 
+use self::crypto::rc4::Rc4;
+use self::crypto::symmetriccipher::SynchronousStreamCipher;
 use std::io;
 use std::io::Read;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::str;
+use std::iter::repeat;
 use palette::Palette;
 use tile::TileSet;
 use sprite::Sprite;
@@ -34,7 +40,8 @@ pub struct AssetNamespace {
 	maps_by_id: HashMap<String, Rc<Map>>,
 	maps_by_name: HashMap<String, Rc<Map>>,
 	sprites_by_id: HashMap<String, Rc<Sprite>>,
-	sprites_by_name: HashMap<String, Rc<Sprite>>
+	sprites_by_name: HashMap<String, Rc<Sprite>>,
+	raw_data: HashMap<String, Vec<u8>>
 }
 
 impl AssetNamespace {
@@ -49,7 +56,8 @@ impl AssetNamespace {
 			maps_by_id: HashMap::new(),
 			maps_by_name: HashMap::new(),
 			sprites_by_id: HashMap::new(),
-			sprites_by_name: HashMap::new()
+			sprites_by_name: HashMap::new(),
+			raw_data: HashMap::new()
 		}
 	}
 
@@ -93,6 +101,54 @@ impl AssetNamespace {
 		}
 
 		return Ok(registered_assets);
+	}
+
+	pub fn bundled_import(&mut self, contents: &HashMap<String, (&'static [u8], Vec<u8>)>) -> Result<Vec<String>, io::Error> {
+		let manifest: Manifest = serde_json::from_str(&get_bundled_asset(contents, "manifest.json"))?;
+		let mut registered_assets: Vec<String> = Vec::new();
+
+		for name in manifest.palettes {
+			let palette = Palette::import(&get_bundled_asset(contents, &name))?;
+			registered_assets.push(palette.id.clone());
+			self.palettes_by_id.insert(palette.id.clone(), Rc::clone(&palette));
+			self.palettes_by_name.insert(palette.name.clone(), Rc::clone(&palette));
+		}
+
+		for name in manifest.tilesets {
+			let tile_set = TileSet::import(&self, &get_bundled_asset(contents, &name))?;
+			registered_assets.push(tile_set.id.clone());
+			self.tile_sets_by_id.insert(tile_set.id.clone(), Rc::clone(&tile_set));
+			self.tile_sets_by_name.insert(tile_set.name.clone(), Rc::clone(&tile_set));
+		}
+
+		for name in manifest.effect_layers {
+			let layer = MapLayer::import_effect_layer(&self, &get_bundled_asset(contents, &name))?;
+			registered_assets.push(layer.id.clone());
+			self.effect_layers_by_id.insert(layer.id.clone(), Rc::clone(&layer));
+			self.effect_layers_by_name.insert(layer.name.clone(), Rc::clone(&layer));
+		}
+
+		for name in manifest.maps {
+			let map = Map::import(&self, &get_bundled_asset(contents, &name))?;
+			registered_assets.push(map.id.clone());
+			self.maps_by_id.insert(map.id.clone(), Rc::clone(&map));
+			self.maps_by_name.insert(map.name.clone(), Rc::clone(&map));
+		}
+
+		for name in manifest.sprites {
+			let sprite = Sprite::import(&self, &get_bundled_asset(contents, &name))?;
+			registered_assets.push(sprite.id.clone());
+			self.sprites_by_id.insert(sprite.id.clone(), Rc::clone(&sprite));
+			self.sprites_by_name.insert(sprite.name.clone(), Rc::clone(&sprite));
+		}
+
+		return Ok(registered_assets);
+	}
+
+	pub fn bundled_import_raw_data(&mut self, contents: &HashMap<String, (&'static [u8], Vec<u8>)>) {
+		for name in contents.keys() {
+			self.raw_data.insert(name.clone(), get_bundled_asset_raw(contents, &name));
+		}
 	}
 
 	pub fn get_palette_by_id(&self, id: &str) -> Option<Rc<Palette>> {
@@ -174,6 +230,14 @@ impl AssetNamespace {
 			None
 		}
 	}
+
+	pub fn get_raw_data(&self, name: &str) -> Option<Vec<u8>> {
+		if let Some(data) = self.raw_data.get(name) {
+			Some(data.clone())
+		} else {
+			None
+		}
+	}
 }
 
 fn load_asset_string(path: &Path, name: &str) -> Result<String, io::Error> {
@@ -181,4 +245,17 @@ fn load_asset_string(path: &Path, name: &str) -> Result<String, io::Error> {
 	let mut result = String::new();
 	File::open(asset_path)?.read_to_string(&mut result)?;
 	Ok(result)
+}
+
+fn get_bundled_asset(contents: &HashMap<String, (&'static [u8], Vec<u8>)>, name: &str) -> String {
+	let data = get_bundled_asset_raw(contents, name);
+	str::from_utf8(&data).unwrap().to_string()
+}
+
+fn get_bundled_asset_raw(contents: &HashMap<String, (&'static [u8], Vec<u8>)>, name: &str) -> Vec<u8> {
+	let data = contents.get(name).unwrap();
+	let mut rc4 = Rc4::new(&data.1);
+	let mut decrypted_contents: Vec<u8> = repeat(0).take(data.0.len()).collect();
+	rc4.process(&data.0, &mut decrypted_contents);
+	inflate::inflate_bytes(&decrypted_contents).unwrap()
 }
