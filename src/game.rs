@@ -926,6 +926,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	(game, render_state)
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn init_headless(game: &Box<Game>) -> (GameState, FramePace) {
 	let game_state = GameState {
 		assets: AssetNamespace::new(),
@@ -1227,6 +1228,7 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 	game_state.rendered_frame += 1;
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn next_frame_headless(game: &mut Box<Game>, game_state: &mut GameState, frame_pace: &mut FramePace) {
 	next_game_frame(game, game_state, frame_pace);
 	frame_pacing(frame_pace);
