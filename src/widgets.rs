@@ -189,6 +189,11 @@ impl UIWrappingLabel {
 				lines.push(cur_line);
 				cur_line = "".to_string();
 				x = pending_word.len();
+			} else if x >= width {
+				lines.push(pending_word);
+				pending_word = "".to_string();
+				pending_word.push(ch);
+				x = 1;
 			} else {
 				pending_word.push(ch);
 				x += 1;
