@@ -70,6 +70,7 @@ SOURCES += \
 	textfieldtype.cpp \
 	intfieldtype.cpp \
 	floatfieldtype.cpp \
+	boolfieldtype.cpp \
 	choicefieldtype.cpp \
 	mapfieldtype.cpp \
 	tilesetfieldtype.cpp \
@@ -139,6 +140,7 @@ HEADERS += \
 	textfieldtype.h \
 	intfieldtype.h \
 	floatfieldtype.h \
+	boolfieldtype.h \
 	choicefieldtype.h \
 	mapfieldtype.h \
 	tilesetfieldtype.h \

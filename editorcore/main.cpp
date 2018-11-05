@@ -17,6 +17,7 @@
 #include "textfieldtype.h"
 #include "intfieldtype.h"
 #include "floatfieldtype.h"
+#include "boolfieldtype.h"
 #include "choicefieldtype.h"
 #include "mapfieldtype.h"
 #include "tilesetfieldtype.h"
@@ -100,6 +101,7 @@ void InitEditor()
 	TextFieldType::Register();
 	IntFieldType::Register();
 	FloatFieldType::Register();
+	BoolFieldType::Register();
 	ChoiceFieldType::Register();
 	MapFieldType::Register();
 	TileSetFieldType::Register();
