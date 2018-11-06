@@ -8,6 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::io::Cursor;
 use std::collections::VecDeque;
 
+pub const AUDIO_TYPE_MUSIC: usize = 0;
+pub const AUDIO_TYPE_GAME: usize = 1;
+pub const AUDIO_TYPE_UI: usize = 2;
+
 pub trait AudioSource: Send {
 	fn next_sample(&mut self) -> (i16, i16);
 	fn done(&self) -> bool;
@@ -25,13 +29,15 @@ pub struct Sound {
 	pub pan: u8,
 	pub fade: SoundFade,
 	pub fade_sample: u32,
-	pub destroyed: bool
+	pub destroyed: bool,
+	pub audio_type: usize
 }
 
 pub type SoundRef = Arc<Mutex<RefCell<Sound>>>;
 
 pub struct AudioMixer {
-	pub sounds: Vec<SoundRef>
+	pub sounds: Vec<SoundRef>,
+	pub type_volumes: Vec<u8>
 }
 
 pub type AudioMixerRef = Arc<Mutex<RefCell<AudioMixer>>>;
@@ -42,8 +48,8 @@ pub struct AudioMixerCallback {
 
 pub struct OggAudioSource {
 	stream: OggStreamReader<Cursor<Vec<u8>>>,
-	pending_samples: VecDeque<(i16, i16)>,
-	reached_end: bool
+	data: Vec<u8>,
+	pending_samples: VecDeque<(i16, i16)>
 }
 
 impl AudioCallback for AudioMixerCallback {
@@ -88,8 +94,10 @@ impl AudioCallback for AudioMixerCallback {
 					}
 				}
 				let (mut cur_left, mut cur_right) = sound.source.next_sample();
-				let left_volume = (sound.volume as i32 * i32::max(sound.pan as i32, 128)) / 128;
-				let right_volume = (sound.volume as i32 * (255 - i32::min(sound.pan as i32, 128))) / 127;
+				let type_volume = mixer.type_volumes[sound.audio_type];
+				let volume = (sound.volume as i32 * type_volume as i32) / 255;
+				let left_volume = (volume * i32::max(sound.pan as i32, 128)) / 128;
+				let right_volume = (volume * (255 - i32::min(sound.pan as i32, 128))) / 127;
 				cur_left = ((cur_left as i32 * left_volume) / 255) as i16;
 				cur_right = ((cur_right as i32 * right_volume) / 255) as i16;
 				left = left.saturating_add(cur_left);
@@ -124,33 +132,40 @@ impl Sound {
 impl AudioMixer {
 	pub fn new() -> AudioMixerRef {
 		let mixer = AudioMixer {
-			sounds: Vec::new()
+			sounds: Vec::new(),
+			type_volumes: vec![255, 255, 255]
 		};
 		Arc::new(Mutex::new(RefCell::new(mixer)))
 	}
 
-	pub fn play(&mut self, source: Box<AudioSource>) -> SoundRef {
+	pub fn set_type_volume(&mut self, audio_type: usize, volume: u8) {
+		self.type_volumes[audio_type] = volume;
+	}
+
+	pub fn play(&mut self, source: Box<AudioSource>, audio_type: usize) -> SoundRef {
 		let sound = Sound {
 			source,
 			volume: 255,
 			pan: 255,
 			fade: SoundFade::NoFade,
 			fade_sample: 0,
-			destroyed: false
+			destroyed: false,
+			audio_type
 		};
 		let sound_ref = Arc::new(Mutex::new(RefCell::new(sound)));
 		self.sounds.push(sound_ref.clone());
 		sound_ref
 	}
 
-	pub fn play_fade_in(&mut self, source: Box<AudioSource>, fade_time: f32) -> SoundRef {
+	pub fn play_fade_in(&mut self, source: Box<AudioSource>, fade_time: f32, audio_type: usize) -> SoundRef {
 		let sound = Sound {
 			source,
 			volume: 0,
 			pan: 255,
 			fade: SoundFade::FadeIn(((44100.0 * fade_time) / 255.0) as u32),
 			fade_sample: 0,
-			destroyed: false
+			destroyed: false,
+			audio_type
 		};
 		let sound_ref = Arc::new(Mutex::new(RefCell::new(sound)));
 		self.sounds.push(sound_ref.clone());
@@ -169,6 +184,7 @@ impl AudioMixerCallback {
 impl AudioSource for OggAudioSource {
 	fn next_sample(&mut self) -> (i16, i16) {
 		while self.pending_samples.is_empty() {
+			let mut reached_end = false;
 			match self.stream.read_dec_packet_itl().unwrap() {
 				Some(samples) => {
 					for i in 0..samples.len() / 2 {
@@ -176,14 +192,15 @@ impl AudioSource for OggAudioSource {
 					}
 				},
 				None => {
-					self.reached_end = true;
-					return (0, 0);
+					reached_end = true;
 				}
+			};
+			if reached_end {
+				self.stream = OggStreamReader::new(Cursor::new(self.data.clone())).unwrap();
 			}
 		}
 
 		if self.pending_samples.is_empty() {
-			self.reached_end = true;
 			return (0, 0);
 		}
 
@@ -191,18 +208,18 @@ impl AudioSource for OggAudioSource {
 	}
 
 	fn done(&self) -> bool {
-		self.reached_end
+		false
 	}
 }
 
 impl OggAudioSource {
 	pub fn new(data: Vec<u8>) -> Box<AudioSource> {
-		let cursor = Cursor::new(data);
+		let cursor = Cursor::new(data.clone());
 		let stream = OggStreamReader::new(cursor).unwrap();
 		Box::new(OggAudioSource {
 			stream,
-			pending_samples: VecDeque::new(),
-			reached_end: false
+			data,
+			pending_samples: VecDeque::new()
 		})
 	}
 }

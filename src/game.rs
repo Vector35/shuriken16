@@ -35,6 +35,7 @@ use ui::{UILayoutRef, UILayerRef};
 use actor::{Actor, ActorRef};
 use camera::Camera;
 use asset::AssetNamespace;
+use audio;
 use audio::{AudioMixer, AudioMixerCallback, AudioMixerRef, SoundRef};
 
 pub struct HatBindings {
@@ -849,7 +850,7 @@ impl GameState {
 
 		let music = self.assets.get_ogg_audio_source(name).unwrap();
 		let mixer_lock = self.audio_mixer.lock().unwrap();
-		self.music_sound = Some(mixer_lock.borrow_mut().play_fade_in(music, fade_time));
+		self.music_sound = Some(mixer_lock.borrow_mut().play_fade_in(music, fade_time, audio::AUDIO_TYPE_MUSIC));
 		self.music_name = name.to_string();
 	}
 
@@ -866,6 +867,11 @@ impl GameState {
 		}
 		self.music_sound = None;
 		self.music_name = String::new();
+	}
+
+	pub fn set_audio_type_volume(&self, audio_type: usize, volume: u8) {
+		let mixer_lock = self.audio_mixer.lock().unwrap();
+		mixer_lock.borrow_mut().set_type_volume(audio_type, volume);
 	}
 }
 
