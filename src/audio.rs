@@ -52,6 +52,13 @@ pub struct OggAudioSource {
 	pending_samples: VecDeque<(i16, i16)>
 }
 
+pub struct MonoWavAudioSource {
+	data: Vec<u8>,
+	offset: usize,
+	looping: bool,
+	ended: bool
+}
+
 impl AudioCallback for AudioMixerCallback {
 	type Channel = i16;
 
@@ -96,8 +103,8 @@ impl AudioCallback for AudioMixerCallback {
 				let (mut cur_left, mut cur_right) = sound.source.next_sample();
 				let type_volume = mixer.type_volumes[sound.audio_type];
 				let volume = (sound.volume as i32 * type_volume as i32) / 255;
-				let left_volume = (volume * i32::max(sound.pan as i32, 128)) / 128;
-				let right_volume = (volume * (255 - i32::min(sound.pan as i32, 128))) / 127;
+				let left_volume = (volume * (255 - i32::max(sound.pan as i32, 128))) / 127;
+				let right_volume = (volume * i32::min(sound.pan as i32, 128)) / 128;
 				cur_left = ((cur_left as i32 * left_volume) / 255) as i16;
 				cur_right = ((cur_right as i32 * right_volume) / 255) as i16;
 				left = left.saturating_add(cur_left);
@@ -119,6 +126,45 @@ impl AudioCallback for AudioMixerCallback {
 }
 
 impl Sound {
+	pub fn new(source: Box<AudioSource>, audio_type: usize) -> SoundRef {
+		let sound = Sound {
+			source,
+			volume: 255,
+			pan: 128,
+			fade: SoundFade::NoFade,
+			fade_sample: 0,
+			destroyed: false,
+			audio_type
+		};
+		Arc::new(Mutex::new(RefCell::new(sound)))
+	}
+
+	pub fn new_with_fade_in(source: Box<AudioSource>, fade_time: f32, audio_type: usize) -> SoundRef {
+		let sound = Sound {
+			source,
+			volume: 0,
+			pan: 128,
+			fade: SoundFade::FadeIn(((44100.0 * fade_time) / 255.0) as u32),
+			fade_sample: 0,
+			destroyed: false,
+			audio_type
+		};
+		Arc::new(Mutex::new(RefCell::new(sound)))
+	}
+
+	pub fn new_with_volume_and_pan(source: Box<AudioSource>, volume: u8, pan: u8, audio_type: usize) -> SoundRef {
+		let sound = Sound {
+			source,
+			volume,
+			pan,
+			fade: SoundFade::NoFade,
+			fade_sample: 0,
+			destroyed: false,
+			audio_type
+		};
+		Arc::new(Mutex::new(RefCell::new(sound)))
+	}
+
 	pub fn fade_out(&mut self, fade_time: f32) {
 		self.fade = SoundFade::FadeOut(((44100.0 * fade_time) / 255.0) as u32);
 		self.fade_sample = 0;
@@ -142,34 +188,20 @@ impl AudioMixer {
 		self.type_volumes[audio_type] = volume;
 	}
 
-	pub fn play(&mut self, source: Box<AudioSource>, audio_type: usize) -> SoundRef {
-		let sound = Sound {
-			source,
-			volume: 255,
-			pan: 255,
-			fade: SoundFade::NoFade,
-			fade_sample: 0,
-			destroyed: false,
-			audio_type
-		};
-		let sound_ref = Arc::new(Mutex::new(RefCell::new(sound)));
-		self.sounds.push(sound_ref.clone());
-		sound_ref
+	pub fn play(&mut self, sound: SoundRef) {
+		self.sounds.push(sound);
 	}
 
-	pub fn play_fade_in(&mut self, source: Box<AudioSource>, fade_time: f32, audio_type: usize) -> SoundRef {
-		let sound = Sound {
-			source,
-			volume: 0,
-			pan: 255,
-			fade: SoundFade::FadeIn(((44100.0 * fade_time) / 255.0) as u32),
-			fade_sample: 0,
-			destroyed: false,
-			audio_type
-		};
-		let sound_ref = Arc::new(Mutex::new(RefCell::new(sound)));
-		self.sounds.push(sound_ref.clone());
-		sound_ref
+	pub fn play_source(&mut self, source: Box<AudioSource>, audio_type: usize) -> SoundRef {
+		let sound = Sound::new(source, audio_type);
+		self.sounds.push(sound.clone());
+		sound
+	}
+
+	pub fn play_source_fade_in(&mut self, source: Box<AudioSource>, fade_time: f32, audio_type: usize) -> SoundRef {
+		let sound = Sound::new_with_fade_in(source, fade_time, audio_type);
+		self.sounds.push(sound.clone());
+		sound
 	}
 }
 
@@ -220,6 +252,41 @@ impl OggAudioSource {
 			stream,
 			data,
 			pending_samples: VecDeque::new()
+		})
+	}
+}
+
+impl AudioSource for MonoWavAudioSource {
+	fn next_sample(&mut self) -> (i16, i16) {
+		if self.ended {
+			return (0, 0);
+		}
+		if (self.offset + 2) > self.data.len() {
+			if self.looping {
+				self.offset = 0x2c;
+			} else {
+				self.ended = true;
+				return (0, 0);
+			}
+		}
+		let value = ((self.data[self.offset] as u16) |
+			((self.data[self.offset + 1] as u16) << 8)) as i16;
+		self.offset += 2;
+		(value, value)
+	}
+
+	fn done(&self) -> bool {
+		self.ended
+	}
+}
+
+impl MonoWavAudioSource {
+	pub fn new(data: Vec<u8>, looping: bool) -> Box<AudioSource> {
+		Box::new(MonoWavAudioSource {
+			data,
+			offset: 0x2c,
+			looping,
+			ended: false
 		})
 	}
 }

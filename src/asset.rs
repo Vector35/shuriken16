@@ -19,7 +19,7 @@ use tile::TileSet;
 use sprite::Sprite;
 use map::MapLayer;
 use map::Map;
-use audio::{OggAudioSource, AudioSource};
+use audio::{OggAudioSource, MonoWavAudioSource, AudioSource};
 
 pub static RUNTIME_ASSET: &str = "runtime";
 
@@ -256,6 +256,14 @@ impl AssetNamespace {
 			None => return None
 		};
 		Some(OggAudioSource::new(data))
+	}
+
+	pub fn get_mono_wav_audio_source(&self, name: &str, looping: bool) -> Option<Box<AudioSource>> {
+		let data = match self.get_raw_data(name) {
+			Some(data) => data,
+			None => return None
+		};
+		Some(MonoWavAudioSource::new(data, looping))
 	}
 }
 
