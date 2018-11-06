@@ -12,6 +12,7 @@ pub mod ui;
 pub mod actor;
 pub mod camera;
 pub mod widgets;
+pub mod audio;
 
 #[cfg(target_os = "emscripten")]
 pub mod emscripten;

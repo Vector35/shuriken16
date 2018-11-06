@@ -20,6 +20,7 @@ use self::sdl2::video::Window;
 #[cfg(target_os = "macos")]
 use self::sdl2::video::WindowPos;
 use self::sdl2::clipboard::ClipboardUtil;
+use self::sdl2::audio::{AudioSpecDesired, AudioDevice};
 use self::byteorder::{ByteOrder, LittleEndian};
 use std::process;
 use std::cell::RefCell;
@@ -34,6 +35,7 @@ use ui::{UILayoutRef, UILayerRef};
 use actor::{Actor, ActorRef};
 use camera::Camera;
 use asset::AssetNamespace;
+use audio::{AudioMixer, AudioMixerCallback, AudioMixerRef, SoundRef};
 
 pub struct HatBindings {
 	left: String,
@@ -90,6 +92,17 @@ pub struct SetScrollEvent {
 }
 
 #[derive(Clone)]
+pub struct PlayMusicEvent {
+	name: String,
+	fade_time: f32
+}
+
+#[derive(Clone)]
+pub struct StopMusicEvent {
+	fade_time: f32
+}
+
+#[derive(Clone)]
 pub enum PendingEvent {
 	MapChange(MapChangeEvent),
 	UnloadMap,
@@ -102,6 +115,8 @@ pub enum PendingEvent {
 	SetCamera(SetCameraEvent),
 	SetCameraShake(SetCameraShakeEvent),
 	SetScroll(SetScrollEvent),
+	PlayMusic(PlayMusicEvent),
+	StopMusic(StopMusicEvent),
 	FadeOut,
 	FadeIn
 }
@@ -141,7 +156,10 @@ pub struct GameState {
 	pub global_mouse_pos_x: isize,
 	pub global_mouse_pos_y: isize,
 	pub save_slot: RefCell<usize>,
-	pub paused: RefCell<bool>
+	pub paused: RefCell<bool>,
+	pub audio_mixer: AudioMixerRef,
+	pub music_name: String,
+	pub music_sound: Option<SoundRef>
 }
 
 pub struct FramePace {
@@ -163,7 +181,8 @@ pub struct RenderState {
 	window_dest_size: RenderSize,
 	render_buf: Vec<Vec<u32>>,
 	texture: Texture,
-	frame_pace: FramePace
+	frame_pace: FramePace,
+	_audio: AudioDevice<AudioMixerCallback>
 }
 
 pub trait Game {
@@ -810,6 +829,44 @@ impl GameState {
 	pub fn is_paused(&self) -> bool {
 		*self.paused.borrow()
 	}
+
+	pub fn play_music(&self, name: &str, fade_time: f32) {
+		self.pending_events.borrow_mut().push(PendingEvent::PlayMusic(PlayMusicEvent {
+			name: name.to_string(),
+			fade_time
+		}));
+	}
+
+	fn play_music_now(&mut self, name: &str, fade_time: f32) {
+		if self.music_name == name {
+			return;
+		}
+
+		if let Some(sound) = &self.music_sound {
+			let sound_lock = sound.lock().unwrap();
+			sound_lock.borrow_mut().fade_out(fade_time);
+		}
+
+		let music = self.assets.get_ogg_audio_source(name).unwrap();
+		let mixer_lock = self.audio_mixer.lock().unwrap();
+		self.music_sound = Some(mixer_lock.borrow_mut().play_fade_in(music, fade_time));
+		self.music_name = name.to_string();
+	}
+
+	pub fn stop_music(&self, fade_time: f32) {
+		self.pending_events.borrow_mut().push(PendingEvent::StopMusic(StopMusicEvent {
+			fade_time
+		}));
+	}
+
+	fn stop_music_now(&mut self, fade_time: f32) {
+		if let Some(sound) = &self.music_sound {
+			let sound_lock = sound.lock().unwrap();
+			sound_lock.borrow_mut().fade_out(fade_time);
+		}
+		self.music_sound = None;
+		self.music_name = String::new();
+	}
 }
 
 fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, RenderState) {
@@ -869,6 +926,19 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		}
 	}
 
+	// Initialize audio engine
+	let audio = sdl.audio().unwrap();
+	let desired_spec = AudioSpecDesired {
+		freq: Some(44100),
+		channels: Some(2),
+		samples: None
+	};
+	let mixer = AudioMixer::new();
+	let audio_device = audio.open_playback(None, &desired_spec, |_spec| {
+		AudioMixerCallback::new(&mixer)
+	}).unwrap();
+	audio_device.resume();
+
 	let events = sdl.event_pump().unwrap();
 
 	let game = GameState {
@@ -908,7 +978,10 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 		global_mouse_pos_x: 0,
 		global_mouse_pos_y: 0,
 		save_slot: RefCell::new(0),
-		paused: RefCell::new(false)
+		paused: RefCell::new(false),
+		audio_mixer: mixer,
+		music_name: String::new(),
+		music_sound: None
 	};
 	let render_state = RenderState {
 		canvas, events, _joystick: joystick,
@@ -921,7 +994,8 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 			last_frame_instant: Instant::now(),
 			frame_pace_error_ns: 0,
 			frame_skip_count: 0
-		}
+		},
+		_audio: audio_device
 	};
 	(game, render_state)
 }
@@ -965,7 +1039,10 @@ fn init_headless(game: &Box<Game>) -> (GameState, FramePace) {
 		global_mouse_pos_x: 0,
 		global_mouse_pos_y: 0,
 		save_slot: RefCell::new(0),
-		paused: RefCell::new(false)
+		paused: RefCell::new(false),
+		audio_mixer: AudioMixer::new(),
+		music_name: String::new(),
+		music_sound: None
 	};
 	let frame_pace = FramePace {
 		last_frame_instant: Instant::now(),
@@ -1041,6 +1118,12 @@ fn next_game_frame(game: &mut Box<Game>, game_state: &mut GameState, frame_pace:
 				PendingEvent::SetScroll(scroll) => {
 					game_state.scroll_x = scroll.x;
 					game_state.scroll_y = scroll.y;
+				},
+				PendingEvent::PlayMusic(music) => {
+					game_state.play_music_now(&music.name, music.fade_time);
+				},
+				PendingEvent::StopMusic(music) => {
+					game_state.stop_music_now(music.fade_time);
 				},
 				PendingEvent::FadeIn => {
 					game_state.target_fade_alpha = 0;

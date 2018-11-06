@@ -11,6 +11,7 @@ hex = "0.3.2"
 byteorder = "1.2.4"
 inflate = "0.4.3"
 rust-crypto = "0.2.36"
+lewton = "0.9.3"
 
 [dependencies.sdl2]
 version = "0.31.0"
