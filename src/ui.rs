@@ -126,6 +126,7 @@ pub trait UILayout: UILayoutAsAny {
 	fn tile_height(&self) -> isize;
 	fn update(&self, bounds: &BoundingRect) -> BoundingRect;
 	fn layers(&self) -> Vec<UILayerRef>;
+	fn tick(&mut self, _game_state: &GameState) {}
 }
 
 impl<T: UILayout + 'static> UILayoutAsAny for T {
@@ -528,6 +529,10 @@ impl UILayout for FixedSizeLayout {
 	}
 
 	fn layers(&self) -> Vec<UILayerRef> { self.inner.borrow().layers() }
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.inner.borrow_mut().tick(game_state);
+	}
 }
 
 impl FixedSizeLayout {
@@ -562,6 +567,10 @@ impl UILayout for FixedPositionLayout {
 	}
 
 	fn layers(&self) -> Vec<UILayerRef> { self.inner.borrow().layers() }
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.inner.borrow_mut().tick(game_state);
+	}
 }
 
 impl FixedPositionLayout {
@@ -616,6 +625,10 @@ impl UILayout for AnchorLayout {
 	}
 
 	fn layers(&self) -> Vec<UILayerRef> { self.inner.borrow().layers() }
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.inner.borrow_mut().tick(game_state);
+	}
 }
 
 impl AnchorLayout {
@@ -658,6 +671,10 @@ impl UILayout for BorderLayout {
 	}
 
 	fn layers(&self) -> Vec<UILayerRef> { self.inner.borrow().layers() }
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.inner.borrow_mut().tick(game_state);
+	}
 }
 
 impl BorderLayout {
@@ -727,6 +744,11 @@ impl UILayout for BackgroundLayout {
 		let mut foreground_layers = self.foreground.borrow().layers();
 		background_layers.append(&mut foreground_layers);
 		background_layers
+	}
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.foreground.borrow_mut().tick(game_state);
+		self.background.borrow_mut().tick(game_state);
 	}
 }
 
@@ -833,6 +855,12 @@ impl UILayout for HorizontalBoxLayout {
 		}
 		result
 	}
+
+	fn tick(&mut self, game_state: &GameState) {
+		for layout in &mut self.layouts {
+			layout.borrow_mut().tick(game_state);
+		}
+	}
 }
 
 impl HorizontalBoxLayout {
@@ -937,6 +965,12 @@ impl UILayout for VerticalBoxLayout {
 		}
 		result
 	}
+
+	fn tick(&mut self, game_state: &GameState) {
+		for layout in &mut self.layouts {
+			layout.borrow_mut().tick(game_state);
+		}
+	}
 }
 
 impl VerticalBoxLayout {
@@ -978,6 +1012,10 @@ impl UILayout for VisibilityLayout {
 		} else {
 			Vec::new()
 		}
+	}
+
+	fn tick(&mut self, game_state: &GameState) {
+		self.inner.borrow_mut().tick(game_state);
 	}
 }
 

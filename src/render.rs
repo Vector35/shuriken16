@@ -639,7 +639,8 @@ pub fn render_frame(render_size: &RenderSize, render_buf: &mut Vec<Vec<u32>>, ga
 			width: render_size.width as isize,
 			height: render_size.height as isize
 		};
-		layout.borrow_mut().update(&rect);
+		layout.borrow_mut().tick(game);
+		layout.borrow().update(&rect);
 
 		let layers = layout.borrow().layers();
 
