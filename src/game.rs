@@ -36,7 +36,7 @@ use actor::{Actor, ActorRef};
 use camera::Camera;
 use asset::AssetNamespace;
 use audio;
-use audio::{AudioMixer, AudioMixerCallback, AudioMixerRef, Sound, SoundRef};
+use audio::{AudioMixer, AudioMixerCallback, AudioMixerRef, Sound, SoundRef, MonoWavAudioSource};
 
 pub struct HatBindings {
 	left: String,
@@ -832,10 +832,12 @@ impl GameState {
 	}
 
 	pub fn play_music(&self, name: &str, fade_time: f32) {
-		self.pending_events.borrow_mut().push(PendingEvent::PlayMusic(PlayMusicEvent {
-			name: name.to_string(),
-			fade_time
-		}));
+		if self.assets.has_raw_data(name) {
+			self.pending_events.borrow_mut().push(PendingEvent::PlayMusic(PlayMusicEvent {
+				name: name.to_string(),
+				fade_time
+			}));
+		}
 	}
 
 	fn play_music_now(&mut self, name: &str, fade_time: f32) {
@@ -875,7 +877,12 @@ impl GameState {
 	}
 
 	pub fn play_game_sound(&self, name: &str, looping: bool, volume: u8, pan: u8) -> SoundRef {
-		let source = self.assets.get_mono_wav_audio_source(name, looping).unwrap();
+		let source;
+		if self.assets.has_raw_data(name) {
+			source = self.assets.get_mono_wav_audio_source(name, looping).unwrap();
+		} else {
+			source = MonoWavAudioSource::new(vec![0; 256], looping);
+		}
 		let sound = Sound::new_with_volume_and_pan(source, volume, pan, audio::AUDIO_TYPE_GAME);
 		let mixer_lock = self.audio_mixer.lock().unwrap();
 		mixer_lock.borrow_mut().play(sound.clone());

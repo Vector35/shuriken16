@@ -250,6 +250,19 @@ impl AssetNamespace {
 		}
 	}
 
+	pub fn has_raw_data(&self, name: &str) -> bool {
+		let mut md5 = Md5::new();
+		md5.input(&self.raw_data_salt);
+		md5.input(name.as_bytes());
+		let mut hash_raw: Vec<u8> = repeat(0).take(md5.output_bytes()).collect();
+		md5.result(&mut hash_raw);
+		if let Some(_) = self.raw_data.get(&hash_raw) {
+			true
+		} else {
+			false
+		}
+	}
+
 	pub fn get_ogg_audio_source(&self, name: &str) -> Option<Box<AudioSource>> {
 		let data = match self.get_raw_data(name) {
 			Some(data) => data,
