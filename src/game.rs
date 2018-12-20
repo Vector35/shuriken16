@@ -17,8 +17,6 @@ use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::rect::Rect;
 use self::sdl2::render::{Canvas, Texture};
 use self::sdl2::video::Window;
-#[cfg(target_os = "macos")]
-use self::sdl2::video::WindowPos;
 use self::sdl2::clipboard::ClipboardUtil;
 use self::sdl2::audio::{AudioSpecDesired, AudioDevice};
 use self::byteorder::{ByteOrder, LittleEndian};
@@ -898,15 +896,7 @@ fn init(title: &str, target: ResolutionTarget, game: &Box<Game>) -> (GameState, 
 	let sdl = sdl2::init().unwrap();
 	let video = sdl.video().unwrap();
 
-	let window;
-	#[cfg(target_os = "macos")] {
-		// Hack for Mojave, resizing the window will permanently break the game
-		window = video.window(title, screen_width as u32, screen_height as u32).allow_highdpi().build().unwrap();
-	}
-	#[cfg(not(target_os = "macos"))] {
-		window = video.window(title, screen_width as u32, screen_height as u32).resizable().allow_highdpi().build().unwrap();
-	}
-
+	let window = video.window(title, screen_width as u32, screen_height as u32).resizable().allow_highdpi().build().unwrap();
 	let window_size = window.size();
 	let window_width = window_size.0 as usize;
 	let window_height = window_size.1 as usize;
@@ -1321,14 +1311,6 @@ fn next_frame(game: &mut Box<Game>, game_state: &mut GameState, render_state: &m
 
 	// Enforce 60 FPS
 	frame_pacing(&mut render_state.frame_pace);
-
-	#[cfg(target_os = "macos")] {
-		// Hack for Mojave, without this we're doomed to a black screen
-		if game_state.rendered_frame == 0 {
-			render_state.canvas.window_mut().set_position(WindowPos::Centered, WindowPos::Centered);
-		}
-	}
-
 	game_state.rendered_frame += 1;
 }
 
