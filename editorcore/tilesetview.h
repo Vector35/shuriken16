@@ -78,6 +78,8 @@ public:
 	virtual void Paste() override;
 	virtual void SelectAll() override;
 
+	virtual void ExportPNG() override;
+
 private slots:
 	void ChangeColumnCount();
 	void ResizeTileSet();

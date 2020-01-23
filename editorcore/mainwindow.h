@@ -45,6 +45,8 @@ class MainWindow: public QMainWindow
 
 	QAction* m_importNESAction;
 
+	QAction* m_exportPNGAction;
+
 	QAction* m_runAction;
 
 	QTabWidget* m_tabs;
@@ -133,4 +135,5 @@ protected slots:
 	void OnRunFinished(int exitCode, QProcess::ExitStatus exitStatus);
 	void TabClose(int i);
 	void OnImportNES();
+	void OnExportPNG();
 };

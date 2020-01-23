@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QScrollBar>
 #include <QMessageBox>
+#include <QFileDialog>
 #include <set>
 #include <queue>
 #include <stdlib.h>
@@ -2043,4 +2044,61 @@ void TileSetEditorWidget::SetCollisionChannel(uint32_t channel)
 {
 	m_collisionChannel = channel;
 	update();
+}
+
+
+void TileSetEditorWidget::ExportPNG()
+{
+	QString fileName = QFileDialog::getSaveFileName(this, "Export PNG", QString(), "PNG files (*.png)");
+	if (fileName.isNull())
+		return;
+
+	int width = m_columns * m_tileSet->GetWidth();
+	int height = m_rows * m_tileSet->GetHeight();
+
+	QImage image(width, height, QImage::Format_ARGB32);
+	for (int y = 0; y < height; y++)
+		memset(image.scanLine(y), 0, width * 4);
+
+	for (int tileY = 0; tileY < (int)m_rows; tileY++)
+	{
+		for (int tileX = 0; tileX < (int)m_columns; tileX++)
+		{
+			size_t tileIndex = (size_t)((tileY * m_columns) + tileX);
+			if (tileIndex >= m_tileSet->GetTileCount())
+				continue;
+
+			shared_ptr<Tile> tile = m_tileSet->GetTile(tileIndex);
+			if (!tile)
+				continue;
+			if ((tile->GetWidth() != m_tileSet->GetWidth()))
+				continue;
+			if ((tile->GetHeight() != m_tileSet->GetHeight()))
+				continue;
+			if ((tile->GetDepth() != m_tileSet->GetDepth()))
+				continue;
+
+			for (int y = 0; y < (int)m_tileSet->GetHeight(); y++)
+			{
+				uint32_t* line = (uint32_t*)image.scanLine(tileY * m_tileSet->GetHeight() + y);
+				for (int x = 0; x < (int)m_tileSet->GetWidth(); x++)
+				{
+					uint8_t colorIndex;
+					if (tile->GetDepth() == 4)
+						colorIndex = (tile->GetData(m_frame)[(y * tile->GetPitch()) + (x / 2)] >> ((x & 1) << 2)) & 0xf;
+					else
+						colorIndex = tile->GetData(m_frame)[(y * tile->GetPitch()) + x];
+					if (colorIndex == 0)
+						continue;
+					if (!tile->GetPalette())
+						continue;
+
+					uint16_t paletteEntry = tile->GetPalette()->GetEntry(tile->GetPaletteOffset() + colorIndex);
+					line[tileX * m_tileSet->GetWidth() + x] = Palette::ToRGB32(paletteEntry) | 0xff000000;
+				}
+			}
+		}
+	}
+
+	image.save(fileName, "PNG");
 }

@@ -433,6 +433,12 @@ void TileSetView::SelectAll()
 }
 
 
+void TileSetView::ExportPNG()
+{
+	m_editor->ExportPNG();
+}
+
+
 void TileSetView::SetPreviewAnimation(int state)
 {
 	m_preview->SetPreviewAnimation(state == Qt::Checked);

@@ -113,6 +113,12 @@ MainWindow::MainWindow(const QString& title, const QString& basePath, const QStr
 	connect(m_importNESAction, &QAction::triggered, this, &MainWindow::OnImportNES);
 	importMenu->addAction(m_importNESAction);
 
+	QMenu* exportMenu = new QMenu("Export");
+
+	m_exportPNGAction = new QAction("PNG...");
+	connect(m_exportPNGAction, &QAction::triggered, this, &MainWindow::OnExportPNG);
+	exportMenu->addAction(m_exportPNGAction);
+
 	QMenu* gameMenu = new QMenu("Game");
 
 	m_runAction = new QAction("Run");
@@ -123,6 +129,7 @@ MainWindow::MainWindow(const QString& title, const QString& basePath, const QStr
 	menuBar()->addMenu(fileMenu);
 	menuBar()->addMenu(editMenu);
 	menuBar()->addMenu(importMenu);
+	menuBar()->addMenu(exportMenu);
 	menuBar()->addMenu(gameMenu);
 
 	m_projectView = new ProjectView(this);
@@ -891,4 +898,13 @@ void MainWindow::OnImportNES()
 		);
 		m_projectView->UpdateList();
 	}
+}
+
+
+void MainWindow::OnExportPNG()
+{
+	QWidget* widget = m_tabs->currentWidget();
+	EditorView* view = dynamic_cast<EditorView*>(widget);
+	if (view)
+		view->ExportPNG();
 }

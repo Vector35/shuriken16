@@ -153,6 +153,8 @@ public:
 
 	void SetCollisionChannel(uint32_t channel);
 
+	void ExportPNG();
+
 protected:
 	virtual void paintEvent(QPaintEvent* event) override;
 	virtual void mousePressEvent(QMouseEvent* event) override;

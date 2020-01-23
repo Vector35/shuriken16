@@ -13,4 +13,6 @@ public:
 	virtual void Copy() {}
 	virtual void Paste() {}
 	virtual void SelectAll() {}
+
+	virtual void ExportPNG() {}
 };
