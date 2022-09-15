@@ -42,7 +42,7 @@ ProjectItemWidget::ProjectItemWidget(QWidget* parent, const string& name, const 
 }
 
 
-void ProjectItemWidget::enterEvent(QEvent*)
+void ProjectItemWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);

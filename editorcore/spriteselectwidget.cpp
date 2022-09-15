@@ -174,7 +174,7 @@ void SpriteSelectWidget::paintEvent(QPaintEvent*)
 		QFontMetrics metrics(font);
 
 		p.setFont(font);
-		p.drawText((rect().width() / 2) - (metrics.width("No sprite") / 2),
+		p.drawText((rect().width() / 2) - (metrics.boundingRect("No sprite").width() / 2),
 			(rect().height() / 2) + (metrics.ascent() / 2), "No sprite");
 		return;
 	}

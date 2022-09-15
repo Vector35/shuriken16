@@ -25,7 +25,7 @@ TileSetPaletteWidget::TileSetPaletteWidget(QWidget* parent, TileSetView* view, M
 	setLayout(layout);
 
 	QFontMetrics metrics(QGuiApplication::font());
-	setMinimumSize(metrics.width("FF ") + 256 + 16 + style()->pixelMetric(QStyle::PM_ScrollBarExtent), 0);
+	setMinimumSize(metrics.horizontalAdvance("FF ") + 256 + 16 + style()->pixelMetric(QStyle::PM_ScrollBarExtent), 0);
 }
 
 

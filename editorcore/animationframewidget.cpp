@@ -81,7 +81,7 @@ AnimationFrameWidget::AnimationFrameWidget(QWidget* parent, const string& name, 
 }
 
 
-void AnimationFrameWidget::enterEvent(QEvent*)
+void AnimationFrameWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);

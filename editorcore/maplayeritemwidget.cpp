@@ -95,7 +95,7 @@ MapLayerItemWidget::MapLayerItemWidget(QWidget* parent, const string& name, bool
 }
 
 
-void MapLayerItemWidget::enterEvent(QEvent*)
+void MapLayerItemWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);

@@ -39,7 +39,7 @@ AssociatedTileSetItemWidget::AssociatedTileSetItemWidget(QWidget* parent, const 
 }
 
 
-void AssociatedTileSetItemWidget::enterEvent(QEvent*)
+void AssociatedTileSetItemWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);

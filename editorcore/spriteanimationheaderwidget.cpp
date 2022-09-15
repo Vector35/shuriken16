@@ -46,7 +46,7 @@ SpriteAnimationHeaderWidget::SpriteAnimationHeaderWidget(QWidget* parent, const 
 }
 
 
-void SpriteAnimationHeaderWidget::enterEvent(QEvent*)
+void SpriteAnimationHeaderWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);

@@ -48,7 +48,7 @@ ActorItemWidget::ActorItemWidget(QWidget* parent, const string& name, bool selec
 }
 
 
-void ActorItemWidget::enterEvent(QEvent*)
+void ActorItemWidget::enterEvent(QEnterEvent*)
 {
 	QPalette red(this->palette());
 	red.setColor(QPalette::WindowText, Theme::red);
